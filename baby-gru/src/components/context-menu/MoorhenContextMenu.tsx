@@ -22,6 +22,7 @@ import { MoorhenRotamerChangeButton } from "./MoorhenRotamerChangeButton";
 import { MoorhenRotateTranslateZoneButton } from "./MoorhenRotateTranslateZoneButton";
 import { MoorhenDragAtomsButton } from "./MoorhenDragAtomsButton";
 import { MoorhenRigidBodyFitButton } from "./MoorhenRigidBodyFitButton";
+import { MoorhenNtcButton} from "./MoorhenNtcButton";
 import { MoorhenMenuItem } from "../interface-base/MenuItems/MenuItem";
 import { MoorhenMenuItemPopover, MoorhenPopover } from "../interface-base";
 
@@ -176,6 +177,7 @@ export const MoorhenContextMenu = (props: {
                                                 <MoorhenDragAtomsButton {...collectedProps} />
                                                 <MoorhenAddAltConfButton {...collectedProps} />
                                                 <MoorhenConvertCisTransButton {...collectedProps} />
+                                                <MoorhenNtcButton {...collectedProps} />
                                     </div>
                                 )
                             )}

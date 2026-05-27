@@ -8,6 +8,7 @@ import { AtomInfo } from "./AtomInfo";
 import { GoToResidue } from "./GoToResidue";
 import { MapContourLevel } from "./MapContourLevel";
 import { ModelTrajectory } from "./ModelTrajectory";
+import { ModifyNtC } from "./ModifyNtC";
 import { ResidueSelectionControls } from "./ResidueSelection";
 import { ResidueSteps } from "./ResidueSteps";
 import { RotamerChange } from "./RotamerChange";
@@ -36,6 +37,7 @@ type PayloadMap = ValidatePayloadMap<{
     flipAllPeptides: { residueList: string[]; selectedMolecule: number };
     steppedRefine: { residueList: string[]; selectedMolecule: number };
     fillAllAtoms: { residueList: string[]; selectedMolecule: number };
+    modifyNtC: { molNo: number, chosenAtom: moorhen.ResidueSpec };
 }>;
 
 type PopupControl = {
@@ -98,4 +100,5 @@ export const PopupControlList: PopupControl[] = [
     { name: "flipAllPeptides", component: <ResidueSteps variant="pepFlip" /> },
     { name: "steppedRefine", component: <ResidueSteps variant="stepRefine" /> },
     { name: "fillAllAtoms", component: <ResidueSteps variant="fillAllAtoms" /> },
+    { name: "modifyNtC", component: <ModifyNtC /> }
 ];
