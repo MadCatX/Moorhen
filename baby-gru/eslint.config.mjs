@@ -131,15 +131,10 @@ export default [
       
       // React Hooks rules
       ...pluginReactHooks.configs.recommended.rules,
-      "react-hooks/react-compiler": "error",
       "react-hooks/exhaustive-deps": "off", // Enforcing this rule is mostly leading to useless and inefficient code
       
       // React Hooks Extra rules
       "react-hooks-extra/no-direct-set-state-in-use-effect": "warn",
-      "react-hooks-extra/no-redundant-custom-hook": "warn",
-      "react-hooks-extra/prefer-use-state-lazy-initialization": "warn",
-      "react-hooks-extra/no-unnecessary-use-callback": "warn",
-      "react-hooks-extra/no-unnecessary-use-memo": "warn",
       
       // Accessibility rules
       ...pluginJsxA11y.configs.recommended.rules,

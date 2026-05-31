@@ -266,6 +266,14 @@ clearlhasa() {
     
 }
 
+clearlibllka() {
+    echo "Clear freetype"
+    rm -rf ${BUILD_DIR}/libllka_build
+    rm -rf ${INSTALL_DIR}/lib/libllka.a
+    rm -rf ${INSTALL_DIR}/lib/pkgconfig/llka.pc
+    rm -rf ${INSTALL_DIR}/include/LLKA
+}
+
 clearall() {
     echo "Clear all"
     clearfreetype
@@ -294,6 +302,7 @@ clearall() {
     cleargraphene
     clearxpid
     clearmoorhen
+    clearlibllka
 }
 
 if [ x"$CLEAR_MODULES" = x"" ]; then
@@ -352,6 +361,8 @@ else
            graphene) cleargraphene
                ;;
            xpid) clearxpid
+               ;;
+	   libllka) clearlibllka
                ;;
            moorhen) clearmoorhen
                ;;
@@ -415,6 +426,7 @@ BUILD_FREETYPE=false
 BUILD_ZLIB=false
 BUILD_PNG=false
 BUILD_XPID=false
+BUILD_LIBLLKA=false
 BUILD_CONKIT=false
 
 if test -d ${INSTALL_DIR}/include/conkit; then
@@ -561,6 +573,12 @@ else
     BUILD_XPID=true
 fi
 
+if test -r ${INSTALL_DIR}/include/LLKA/llka_main.h; then
+    true
+else
+    BUILD_LIBLLKA=true
+fi
+
 if test x"${MEMORY64}" = x"1"; then
 if test -r ${MOORHEN_SOURCE_DIR}/baby-gru/public/MoorhenAssets/wasm/moorhen64.wasm; then
     true
@@ -646,6 +664,9 @@ for mod in $MODULES; do
        xpid) echo "Force build xpid_moorhen"
        BUILD_XPID=true
        ;;
+       libllka) echo "Force build libllka"
+       BUILD_LIBLLKA=true
+       ;;
     esac
 done
 
@@ -674,6 +695,7 @@ echo "BUILD_PNG        " $BUILD_PNG
 echo "BUILD_MOORHEN    " $BUILD_MOORHEN
 echo "BUILD_CONKIT     " $BUILD_CONKIT
 echo "BUILD_XPID       " $BUILD_XPID
+echo "BUILD_LIBLLKA    " $BUILD_LIBLLKA
 
 #xpid_moorhen
 if [ $BUILD_XPID = true ]; then
@@ -1013,6 +1035,15 @@ if [ $BUILD_CONKIT = true ]; then
     emcmake cmake -DCMAKE_INSTALL_PREFIX=${INSTALL_DIR} ${MOORHEN_SOURCE_DIR}/conkit  -DCMAKE_C_FLAGS="${MOORHEN_CMAKE_FLAGS}" -DCMAKE_CXX_FLAGS="${MOORHEN_CMAKE_FLAGS} -I${MOORHEN_SOURCE_DIR}/checkout/conkit/include -I${MOORHEN_SOURCE_DIR}/checkout/conkit/include/conkit_validate -I${MOORHEN_SOURCE_DIR}/checkout/conkit/external/map_align" -DCMAKE_PREFIX_PATH=${INSTALL_DIR}
     emmake make -j ${NUMPROCS}
     emmake make install || fail "Error installing SliceNDice, giving up."
+fi
+
+#libllka
+if [ $BUILD_LIBLLKA = true ]; then
+    getlibllka
+    mkdir -p ${BUILD_DIR}/libllka_build
+    cd ${BUILD_DIR}/libllka_build
+    emcmake cmake -DCMAKE_INSTALL_PREFIX=${INSTALL_DIR} -DEIGEN_INCLUDE_DIR=${INSTALL_DIR}/include/eigen3 -DEMX_JS_BUILD_MODE="ES6" -DBUILD_TESTING=OFF -DBUILD_EXAMPLES=OFF ${MOORHEN_SOURCE_DIR}/checkout/libllka
+    make install || fail "Error installing libllka, giving up."
 fi
 
 #Moorhen

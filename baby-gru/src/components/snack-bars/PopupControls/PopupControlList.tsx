@@ -15,9 +15,12 @@ import { RotamerChange } from "./RotamerChange";
 import { Screenshot } from "./ScreenshotControls";
 import { VideoRecording } from "./VideoRecording";
 
+import { gemmi } from "../../../types/gemmi";
+
 type PayloadType = Record<
     string,
-    string | string[] | number | number[] | boolean | boolean[] | moorhen.ResidueSpec | moorhen.ResidueSpec[] | undefined
+    string | string[] | number | number[] | boolean | boolean[] | moorhen.ResidueSpec | moorhen.ResidueSpec[] | undefined |
+    gemmi.Residue
 >;
 
 type ValidatePayloadMap<T extends Record<string, PayloadType | undefined>> = T;
@@ -37,7 +40,7 @@ type PayloadMap = ValidatePayloadMap<{
     flipAllPeptides: { residueList: string[]; selectedMolecule: number };
     steppedRefine: { residueList: string[]; selectedMolecule: number };
     fillAllAtoms: { residueList: string[]; selectedMolecule: number };
-    modifyNtC: { molNo: number, chosenAtom: moorhen.ResidueSpec };
+    modifyNtC: { firstResidue: gemmi.Residue, secondResidue: gemmi.Residue };
 }>;
 
 type PopupControl = {

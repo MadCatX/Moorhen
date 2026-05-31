@@ -2,6 +2,10 @@ import { v4 as uuidv4 } from "uuid";
 import { webGL } from "../../types/mgWebGL";
 import { moorhen } from "../../types/moorhen";
 import { History } from "../../utils/MoorhenHistory";
+import {
+    type CommandMessage as LlkaCommandMessage,
+    type Response as LlkaResponse
+} from "./LlkaWorker";
 
 export type WorkerResponse<T = any> = {
     data: WorkerResult<T>;
@@ -73,6 +77,7 @@ export type WorkerMessage = {
 export class CommandCentre {
     urlPrefix: string;
     cootWorker: Worker;
+    llkaWorker: Worker;
     activeMessages: WorkerMessage[];
     history: History;
     isClosed: boolean;
@@ -82,6 +87,12 @@ export class CommandCentre {
     onCommandExit: null | ((kwargs: any) => void);
     onActiveMessagesChanged: null | ((activeMessages: WorkerMessage[]) => void);
     onMoleculeChanged: null | ((molNo: number) => void);
+
+    pendingLlkaMessages: [
+        (resolver: any) => void,
+        (rejecter: any) => void,
+        id: string,
+    ][];
 
     constructor(urlPrefix: string, timeCapsule: React.RefObject<moorhen.TimeCapsule>, props: { [x: string]: any }) {
         this.activeMessages = [];
@@ -96,10 +107,13 @@ export class CommandCentre {
         this.onActiveMessagesChanged = null;
         this.onMoleculeChanged = null;
         Object.keys(props).forEach(key => (this[key] = props[key]));
+
+        this.pendingLlkaMessages = [];
     }
 
     async init() {
         this.isClosed = false;
+
         this.cootWorker = new Worker(`${this.urlPrefix}/wasm/CootWorker.js`);
         this.cootWorker.onmessage = this.handleMessage.bind(this);
         const fileResponse = await fetch(`${this.urlPrefix}/data.tar.gz`);
@@ -108,6 +122,26 @@ export class CommandCentre {
         if (this.onCootInitialized) {
             this.onCootInitialized();
         }
+
+        this.llkaWorker = new Worker(`${this.urlPrefix}/wasm/LlkaWorker.js`);
+        this.llkaWorker.onerror = (e) => {
+            console.log('From LLKA worker error', e.message);
+        };
+        this.llkaWorker.onmessage = (msg) => {
+            const llkaMsg = msg.data as LlkaResponse;
+            console.log('From LLKA worker', msg.data);
+
+
+            let pending = this.pendingLlkaMessages.find(([_1, _2, id]) => id === llkaMsg.uuid);
+            if (pending) {
+                if (llkaMsg.success) {
+                    pending[0](llkaMsg.data);
+                } else {
+                    pending[1](`LLKA operation ${llkaMsg.uuid} failed`);
+                }
+            }
+        };
+        this.llkaWorker.postMessage({ command: 'Initialize' });
     }
 
     async close() {
@@ -179,6 +213,16 @@ export class CommandCentre {
             });
         }
         return result;
+    }
+
+    async llkaCommand(cmd: LlkaCommandMessage): Promise<any> {
+        const messageId = uuidv4();
+        cmd.uuid = messageId;
+        this.llkaWorker.postMessage(cmd);
+
+        return new Promise((resolve, reject) => {
+            this.pendingLlkaMessages.push([resolve, reject, messageId]);
+        });
     }
 
     postMessage(kwargs: cootCommandKwargs): Promise<WorkerResponse> {
