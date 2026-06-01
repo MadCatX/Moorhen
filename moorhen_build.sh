@@ -1042,7 +1042,7 @@ if [ $BUILD_LIBLLKA = true ]; then
     getlibllka
     mkdir -p ${BUILD_DIR}/libllka_build
     cd ${BUILD_DIR}/libllka_build
-    emcmake cmake -DCMAKE_INSTALL_PREFIX=${INSTALL_DIR} -DEIGEN_INCLUDE_DIR=${INSTALL_DIR}/include/eigen3 -DEMX_JS_BUILD_MODE="ES6" -DBUILD_TESTING=OFF -DBUILD_EXAMPLES=OFF ${MOORHEN_SOURCE_DIR}/checkout/libllka
+    emcmake cmake -DCMAKE_INSTALL_PREFIX=${INSTALL_DIR} -DEIGEN_INCLUDE_DIR=${INSTALL_DIR}/include/eigen3 -DEMX_JS_BUILD_MODE="WEBWORKER" -DBUILD_TESTING=OFF -DBUILD_EXAMPLES=OFF ${MOORHEN_SOURCE_DIR}/checkout/libllka
     make install || fail "Error installing libllka, giving up."
 fi
 
