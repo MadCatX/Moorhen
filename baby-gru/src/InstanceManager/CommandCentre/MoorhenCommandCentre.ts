@@ -141,7 +141,7 @@ export class CommandCentre {
                 }
             }
         };
-        this.llkaWorker.postMessage({ command: 'Initialize' });
+        this.llkaWorker.postMessage({ command: 'Initialize', cootData: new Uint8Array(fileData) });
     }
 
     async close() {

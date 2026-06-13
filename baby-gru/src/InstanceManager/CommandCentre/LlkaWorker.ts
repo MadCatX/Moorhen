@@ -1,13 +1,36 @@
+import { libcootApi } from "../../types/libcoot"
 import * as LT from "../../types/llka";
+import { gemmi } from "../../types/gemmi";
 
 declare global {
     function createLLKAModule(arg0: any): Promise<any>;
+    function createCootModule(arg0: any): Promise<any>;
 }
 
 let LLKAInstance;
 const loadLLKA = async () =>  {
     importScripts("/MoorhenAssets/wasm/libLLKA.js");
     return await createLLKAModule({ locateFile: (p) => "/MoorhenAssets/wasm/" + p });
+}
+
+let libCootInstance: libcootApi.CootModule;
+const loadLibCoot = async () => {
+    importScripts("./moorhen.js");
+
+    /* eslint-disable no-undef */
+    return await createCootModule({
+        onRuntimeInitialized: () => {
+            console.log('libCoot RT initialized');
+        },
+        mainScriptUrlOrBlob: "moorhen.js",
+        /* eslint-disable no-undef */
+        print(t) {
+            console.debug(["output", t]);
+        },
+        printErr(t) {
+            console.debug(["output", t]);
+        },
+    });
 }
 
 const degToRad = (deg: number) => {
@@ -211,6 +234,10 @@ const ViolatingTorsions = {
 
 const classifyStep = (stru: LT.LLKAStructure) => {
     return LLKAInstance.classifyStep(stru, LLKAClassificationCtx);
+}
+
+const NtCStructure= (ntc: LT.NtC) => {
+    return LLKAInstance.NtCStructure(ntc);
 }
 
 /*
@@ -422,9 +449,11 @@ export type ClassificationResult = {
  *
  */
 export type AtomDescription = {
-    element_type: string,
+    element_name: string,
+    element_sylbol: string,
     label_atom_id: string,
     label_comp_id: string,
+    label_asym_id: string,
     id: number,
     label_seq_id: number,
     auth_seq_id: number,
@@ -435,16 +464,24 @@ export type CommandMessageBase = {
     uuid: string,
 };
 export type CommandMessageInitialize = {
-    command: 'Initialize';
+    command: 'Initialize',
+    cootData: Uint8Array,
 } & CommandMessageBase;
 export type CommandMessageClassifyDinucleotide = {
     command: 'ClassifyDinucleotide',
     firstResidue: AtomDescription[],
     secondResidue: AtomDescription[],
 } & CommandMessageBase;
+export type CommandSuperposeSpecificNtC = {
+    command: 'SuperposeSpecificNtC',
+    NtC: number,
+    firstResidue: AtomDescription[],
+    secondResidue: AtomDescription[],
+} & CommandMessageBase;
 export type CommandMessage =
     CommandMessageInitialize |
-    CommandMessageClassifyDinucleotide;
+    CommandMessageClassifyDinucleotide |
+    CommandSuperposeSpecificNtC;
 
 
 export type ResponseBase = {
@@ -459,18 +496,24 @@ export type ResponseClassifyDinucleotide = {
     command: CommandMessageClassifyDinucleotide['command'],
     data: ClassificationResult,
 } & ResponseBase;
+export type ResponseSuperposeSpecificNtC = {
+    command: CommandSuperposeSpecificNtC['command'],
+    data: null,
+} & ResponseBase;
 export type Response =
     ResponseInitialize |
-    ResponseClassifyDinucleotide;
+    ResponseClassifyDinucleotide |
+    ResponseSuperposeSpecificNtC;
 
-const classifyDinucleotides = (firstResidue, secondResidue) => {
+
+const atomsToLlkaStructure = (atoms) => {
     const stru = CLLKAStructure();
 
-    for (const atom of [...firstResidue, ...secondResidue]) {
+    for (const atom of atoms) {
         const altloc = atom.altloc === '' ? NO_ALTID : atom.altloc.codePointAt(0);
 
         const a = CLLKAAtom(
-            atom.element_type,
+            atom.element_name,
             atom.label_atom_id,
             '1', // Not necessary for NtC classification
             atom.label_comp_id,
@@ -489,6 +532,12 @@ const classifyDinucleotides = (firstResidue, secondResidue) => {
 
         stru.push_back(a);
     }
+
+    return stru;
+}
+
+const classifyDinucleotides = (firstResidue, secondResidue) => {
+    const stru = atomsToLlkaStructure([...firstResidue, ...secondResidue]);
 
     const rcResult = LLKAInstance.classifyStep(stru, LLKAClassificationCtx);
     if (!rcResult.isSuccess()) {
@@ -533,6 +582,43 @@ const classifyDinucleotides = (firstResidue, secondResidue) => {
     }
 };
 
+const coortFlt = (f: number) => {
+    return f.toFixed(3).padStart(8, '0');
+};
+
+const atomToPdbLine = (atom, serial: number) => {
+    return `ATOM  ${String(serial).padStart(5, '0')} ${atom.element_name.padEnd(4, ' ')}${String(atom.altloc).padStart(1, ' ')} ${atom.label_comp_id} ${atom.label_asym_id} ${String(atom.label_seq_id).padStart(4, '0')} ${String(atom.inscode).padStart(1, ' ')} ${coortFlt(atom.x)}${coortFlt(atom.y)}${coortFlt(atom.z)} 1.000 1.000${''.padEnd(10, ' ')}${atom.element_symbol.padStart(2, ' ')}`;
+};
+
+const superposeSpecificNtC = (NtC: number, firstResidue, secondResidue) => {
+    const atoms = [...firstResidue, ...secondResidue]
+
+    let structureAsPdbString = '';
+    for (let idx = 0; idx < atoms.length; idx++) {
+        structureAsPdbString += atomToPdbLine(atoms[idx], idx + 1) + "\n";
+    }
+
+    console.log(structureAsPdbString);
+    // Add the molecules to the Coot container
+    const molTainer = new libCootInstance.molecules_container_js(false);
+    molTainer.set_use_gemmi(false);
+    molTainer.set_show_timings(false);
+    molTainer.set_refinement_is_verbose(false);
+    //molTainer.fill_rotamer_probability_tables();
+    molTainer.set_map_sampling_rate(1.7);
+    molTainer.set_map_is_contoured_with_thread_pool(false);
+    molTainer.set_max_number_of_threads(1);
+    molTainer.read_coords_string(structureAsPdbString, 'AUX');;
+
+    //molTainer['mutate']
+
+    const stru = atomsToLlkaStructure(atoms);
+    const NtCStru = LLKAInstance.NtCStructure(NtC);
+
+
+    console.log(NtCStru);
+    console.log(molTainer);
+}
 
 onmessage = function(e) {
     const message = e.data as CommandMessage;
@@ -554,6 +640,28 @@ onmessage = function(e) {
                 this.postMessage('LLKA worker fully initialized');
             });
         });
+        loadLibCoot().then(instance => {
+            libCootInstance = instance;
+            console.log('libCoot loaded');
+
+            const fileData = message.cootData;
+            let doUnzip = false
+            let unzipName = ""
+
+            let tarFileName = "data.tar"
+            if(fileData[0]==0x1F && fileData[1]==0x8B){
+                doUnzip = true
+                tarFileName = "data.tar.gz"
+                unzipName = "data_tmp/data.tar"
+            }
+
+            //FIXME - Need to consider the case of doUnzip is true.
+            libCootInstance.FS.mkdir("data_tmp")
+            libCootInstance.FS_createDataFile("data_tmp", tarFileName, fileData, true, true);
+            const retVal = libCootInstance.unpackCootDataFile("data_tmp/"+tarFileName,doUnzip, unzipName,"")
+            libCootInstance.FS_unlink("data_tmp/"+tarFileName)
+            libCootInstance.FS.mkdir("COOT_BACKUP")
+        });
     } else if (message.command === 'ClassifyDinucleotide') {
         const result = classifyDinucleotides(message.firstResidue, message.secondResidue);
 
@@ -571,5 +679,14 @@ onmessage = function(e) {
                 success: false,
             });
         }
+    } else if (message.command === 'SuperposeSpecificNtC') {
+        const result = superposeSpecificNtC(message.NtC, message.firstResidue, message.secondResidue);
+
+        this.postMessage({
+            uuid: message.uuid,
+            command: 'SuperposeSpecificNtC',
+            success: true,
+            data: null,
+        });
     }
 }
