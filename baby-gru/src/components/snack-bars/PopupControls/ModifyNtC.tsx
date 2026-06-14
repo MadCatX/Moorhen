@@ -5,8 +5,11 @@ import { MoorhenStack } from "@/components/interface-base";
 import { gemmi } from "../../../types/gemmi";
 import { useCommandCentre } from "@/InstanceManager";
 
+import { useMoorhenInstance } from "@/InstanceManager";
+import { MoorhenMolecule } from "../../../utils/MoorhenMolecule";
+
 import * as LT from "../../../types/llka";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type Classification = {
     assignedNtC: string,
@@ -35,6 +38,7 @@ type Classification = {
 };
 
 const NtCs = [
+    '(Closest)',
     'AA00',
     'AA02',
     'AA03',
@@ -181,14 +185,37 @@ function gatherAltLocs(residue: gemmi.Residue) {
     return Array.from(altlocs);
 }
 
+function removeSuperposedNtC(molecule?: MoorhenMolecule) {
+    if (molecule) {
+        for (const r of molecule.representations) {
+            r.hide();
+            molecule.removeRepresentation(r.uniqueId);
+        }
+        molecule.delete(true);
+    }
+}
+
+function rad2deg(r?: number) {
+    if (!r) return null;
+    return r * 180.0 / Math.PI;
+}
+
 export const ModifyNtC = () => {
     const dispatch = useDispatch();
     const shownControl = useSelector((state: RootState) => state.globalUI.shownControl);
 
     const cc = useCommandCentre();
-    const [classification, setClassification] = useState<Classification | null>(null)
+    const mhi = useMoorhenInstance();
+
+    const [metrics, setMetrics] = useState<LT.LLKAStepMetrics| null>(null);
+    const [metricsDiffs, setMetricsDiffs] = useState<LT.LLKAStepMetrics| null>(null);
     const [selectedAltlocs, setSelectedAltlocs] = useState("-^-");
-    const [selectedNtC, setSelectedNtC] = useState(0);
+    const [selectedNtC, setSelectedNtC] = useState(-1);
+    const [assignedNtC, setAssignedNtC] = useState('');
+    const [closestNtC, setClosestNtC] = useState('');
+    const [rmsd, setRmsd] = useState(0);
+
+    const superposedNtC = useRef<MoorhenMolecule | null>(null);
 
     const altlocCombinations = useMemo(() => {
         const firstResidue =  shownControl?.name === "modifyNtC" ? shownControl.payload?.firstResidue : void 0;
@@ -232,25 +259,61 @@ export const ModifyNtC = () => {
         return [first, second];
     }, [shownControl, selectedAltlocs]);
 
-    const runClassification = () => {
+    const superposeNtC = (NtCStructure: string) => {
+        removeSuperposedNtC(superposedNtC.current);
+        superposedNtC.current = null;
+
+        superposedNtC.current = new MoorhenMolecule(cc, mhi.store, mhi.paths.monomerLibraryPath);
+        superposedNtC.current.setBackgroundColour([128, 128, 64, 1]);
+        superposedNtC.current.defaultBondOptions.smoothness = 1.0;
+
+        superposedNtC.current.loadToCootFromString(NtCStructure, "LLKA_NtC.pdb").then(() => {
+            superposedNtC.current.fetchIfDirtyAndDraw("CBs");
+        });
+    }
+
+    const superposeAndClassify = async () => {
         const residues = getResidues();
         if (!residues) return;
 
-        cc.current.llkaCommand(
-            {
-                uuid: '',
-                command: 'ClassifyDinucleotide',
-                firstResidue: residues[0],
-                secondResidue: residues[1],
-            }
-        ).then((data) => {
-            setClassification(data);
-        });
+        let response;
+        if (selectedNtC === -1) {
+            response = await cc.current.llkaCommand(
+                {
+                    uuid: '',
+                    command: 'SuperposeClosestNtC',
+                    firstResidue: residues[0],
+                    secondResidue: residues[1],
+                }
+            );
+
+            setAssignedNtC(response.assignedNtC);
+            setClosestNtC(response.closestNtC);
+        } else {
+            response = await cc.current.llkaCommand(
+                {
+                    uuid: '',
+                    command: 'SuperposeSpecificNtC',
+                    firstResidue: residues[0],
+                    secondResidue: residues[1],
+                    NtC: selectedNtC,
+                }
+            );
+        }
+
+        setMetrics(response.metrics);
+        setMetricsDiffs(response.diffs);
+        setRmsd(response.rmsd);
+        superposeNtC(response.superposedNtCStructure);
     };
 
     useEffect(() => {
-        runClassification();
-    }, [selectedAltlocs]);
+        superposeAndClassify();
+    }, [selectedAltlocs, selectedNtC]);
+
+    useEffect(() => {
+        return () => removeSuperposedNtC(superposedNtC.current);
+    }, []);
 
     return (
         <ClickAwayListener onClickAway={() => dispatch(setShownControl(null))}>
@@ -259,13 +322,13 @@ export const ModifyNtC = () => {
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'auto auto' }}>
                     <div>Assigned NtC</div>
-                    <div>{classification?.assignedNtC ?? ''}</div>
+                    <div>{assignedNtC}</div>
 
                     <div>Closest NtC</div>
-                    <div>{classification?.closestNtC ?? '' }</div>
+                    <div>{closestNtC}</div>
 
                     <div>RMSD of displayed NtC</div>
-                    <div>{classification?.rmsdToClosestNtC}</div>
+                    <div>{rmsd.toFixed(3)}</div>
 
                     <div>Alt. conf</div>
                     <div>
@@ -285,22 +348,13 @@ export const ModifyNtC = () => {
                                 const NtCIndex = parseInt(v.currentTarget.value);
                                 setSelectedNtC(NtCIndex);
 
-                                const residues = getResidues();
-                                if (!residues) return;
-
-                                cc.current.llkaCommand({
-                                    uuid: '',
-                                    command: 'SuperposeSpecificNtC',
-                                    NtC: NtCIndex,
-                                    firstResidue: residues[0],
-                                    secondResidue: residues[1],
-                                });
+                                superposeAndClassify();
                             }}
                         >
-                            {NtCs.map((ntc, idx) => <option key={idx} value={idx}>{ntc}</option>)}
+                            {NtCs.map((ntc, idx) => <option key={idx} value={idx - 1}>{ntc}</option>)}
                         </select>
 
-                        <button>Reset</button>
+                        <button onClick={() => setSelectedNtC(-1)} >Reset</button>
                     </div>
                 </div>
 
@@ -313,52 +367,52 @@ export const ModifyNtC = () => {
                     <div>{'\u03B4'} to NtC (deg)</div>
 
                     <div>{'\u018D'}1</div>
-                    <div>{classification?.metrics.delta_1 ?? ''}</div>
-                    <div>{classification?.differencesFromNtCAverages.delta_1 ?? ''} </div>
+                    <div>{rad2deg(metrics?.delta_1)?.toFixed(2) ?? ''}</div>
+                    <div>{rad2deg(metricsDiffs?.delta_1)?.toFixed(2) ?? ''} </div>
 
                     <div>{'\u025B'}1</div>
-                    <div>{classification?.metrics.epsilon_1 ?? ''}</div>
-                    <div>{classification?.differencesFromNtCAverages.epsilon_1 ?? ''}</div>
+                    <div>{rad2deg(metrics?.epsilon_1)?.toFixed(2) ?? ''}</div>
+                    <div>{rad2deg(metricsDiffs?.epsilon_1)?.toFixed(2) ?? ''}</div>
 
                     <div>{'\u03B6'}1</div>
-                    <div>{classification?.metrics.zeta_1 ?? ''}</div>
-                    <div>{classification?.differencesFromNtCAverages.zeta_1 ?? ''}</div>
+                    <div>{rad2deg(metrics?.zeta_1)?.toFixed(2) ?? ''}</div>
+                    <div>{rad2deg(metricsDiffs?.zeta_1)?.toFixed(2) ?? ''}</div>
 
                     <div>{'\u03B1'}2</div>
-                    <div>{classification?.metrics.alpha_2 ?? ''}</div>
-                    <div>{classification?.differencesFromNtCAverages.alpha_2 ?? ''}</div>
+                    <div>{rad2deg(metrics?.alpha_2)?.toFixed(2) ?? ''}</div>
+                    <div>{rad2deg(metricsDiffs?.alpha_2)?.toFixed(2) ?? ''}</div>
 
                     <div>{'\u03B2'}2</div>
-                    <div>{classification?.metrics.beta_2 ?? ''}</div>
-                    <div>{classification?.differencesFromNtCAverages.beta_2 ?? ''}</div>
+                    <div>{rad2deg(metrics?.beta_2)?.toFixed(2) ?? ''}</div>
+                    <div>{rad2deg(metricsDiffs?.beta_2)?.toFixed(2) ?? ''}</div>
 
                     <div>{'\u03B3'}2</div>
-                    <div>{classification?.metrics.gamma_2 ?? ''}</div>
-                    <div>{classification?.differencesFromNtCAverages.gamma_2 ?? ''}</div>
+                    <div>{rad2deg(metrics?.gamma_2)?.toFixed(2) ?? ''}</div>
+                    <div>{rad2deg(metricsDiffs?.gamma_2)?.toFixed(2) ?? ''}</div>
 
                     <div>{'\u03B4'}2</div>
-                    <div>{classification?.metrics.delta_2 ?? ''}</div>
-                    <div>{classification?.differencesFromNtCAverages.delta_2 ?? ''}</div>
+                    <div>{rad2deg(metrics?.delta_2)?.toFixed(2) ?? ''}</div>
+                    <div>{rad2deg(metricsDiffs?.delta_2)?.toFixed(2) ?? ''}</div>
 
                     <div>{'\u03C7'}1</div>
-                    <div>{classification?.metrics.chi_1 ?? ''}</div>
-                    <div>{classification?.differencesFromNtCAverages.chi_1 ?? ''}</div>
+                    <div>{rad2deg(metrics?.chi_1)?.toFixed(2) ?? ''}</div>
+                    <div>{rad2deg(metricsDiffs?.chi_1)?.toFixed(2) ?? ''}</div>
 
                     <div>{'\u03C7'}2</div>
-                    <div>{classification?.metrics.chi_2 ?? ''}</div>
-                    <div>{classification?.differencesFromNtCAverages.chi_2 ?? ''}</div>
+                    <div>{rad2deg(metrics?.chi_2)?.toFixed(2) ?? ''}</div>
+                    <div>{rad2deg(metricsDiffs?.chi_2)?.toFixed(2) ?? ''}</div>
 
                     <div>C&apos;C&apos;</div>
-                    <div>{classification?.metrics.CC ?? ''}</div>
-                    <div>{classification?.differencesFromNtCAverages.CC ?? ''}</div>
+                    <div>{rad2deg(metrics?.CC)?.toFixed(2) ?? ''}</div>
+                    <div>{rad2deg(metricsDiffs?.CC)?.toFixed(2) ?? ''}</div>
 
                     <div>N&apos;N&apos;</div>
-                    <div>{classification?.metrics.NN ?? ''}</div>
-                    <div>{classification?.differencesFromNtCAverages.NN ?? ''}</div>
+                    <div>{rad2deg(metrics?.NN)?.toFixed(2) ?? ''}</div>
+                    <div>{rad2deg(metricsDiffs?.NN)?.toFixed(2) ?? ''}</div>
 
                     <div>{'\u00B5'}</div>
-                    <div>{classification?.metrics.mu ?? ''}</div>
-                    <div>{classification?.differencesFromNtCAverages.mu ?? ''}</div>
+                    <div>{rad2deg(metrics?.mu)?.toFixed(2) ?? ''}</div>
+                    <div>{rad2deg(metricsDiffs?.mu)?.toFixed(2) ?? ''}</div>
                 </div>
             </MoorhenStack>
         </ClickAwayListener>

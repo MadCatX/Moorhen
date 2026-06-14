@@ -40,7 +40,7 @@ type PayloadMap = ValidatePayloadMap<{
     flipAllPeptides: { residueList: string[]; selectedMolecule: number };
     steppedRefine: { residueList: string[]; selectedMolecule: number };
     fillAllAtoms: { residueList: string[]; selectedMolecule: number };
-    modifyNtC: { firstResidue: gemmi.Residue, secondResidue: gemmi.Residue };
+    modifyNtC: { molNo: number, firstResidue: gemmi.Residue, secondResidue: gemmi.Residue };
 }>;
 
 type PopupControl = {

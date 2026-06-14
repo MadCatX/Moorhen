@@ -468,7 +468,7 @@ export type CommandMessageInitialize = {
     cootData: Uint8Array,
 } & CommandMessageBase;
 export type CommandMessageClassifyDinucleotide = {
-    command: 'ClassifyDinucleotide',
+    command: 'SuperposeClosestNtC',
     firstResidue: AtomDescription[],
     secondResidue: AtomDescription[],
 } & CommandMessageBase;
@@ -506,7 +506,7 @@ export type Response =
     ResponseSuperposeSpecificNtC;
 
 
-const atomsToLlkaStructure = (atoms) => {
+function atomsToLlkaStructure(atoms) {
     const stru = CLLKAStructure();
 
     for (const atom of atoms) {
@@ -536,20 +536,32 @@ const atomsToLlkaStructure = (atoms) => {
     return stru;
 }
 
-const classifyDinucleotides = (firstResidue, secondResidue) => {
-    const stru = atomsToLlkaStructure([...firstResidue, ...secondResidue]);
+function calculateStepMetrics(stru: LT.LLKAStructure, NtC: LT.NtC) {
+    const metrics = LLKAInstance.calculateStepMetrics(stru).success();
+    const diffs = LLKAInstance.calculateStepMetricsDifferenceAgainstReference(stru, NtC).success();
 
+    return { metrics, diffs };
+}
+
+function classifyDinucleotide(stru: LT.LLKAStructure) {
     const rcResult = LLKAInstance.classifyStep(stru, LLKAClassificationCtx);
     if (!rcResult.isSuccess()) {
         const error = `Failed to classify step: ${LLKAInstance.errorToString(rcResult.failure())}`;
-        console.log(error);
+        rcResult.delete();
+
+        throw new Error(error);
+    } else {
+        const success: LT.LLKAClassifiedStep = rcResult.success();
+        const assignedNtC = success.assignedNtC;
+        const closestNtC = success.closestNtC;
 
         rcResult.delete();
 
-        return void 0;
-    } else {
-        const success: LT.LLKAClassifiedStep = rcResult.success();
-
+        return {
+            assignedNtC: assignedNtC,
+            closestNtC: closestNtC,
+        };
+        /*
         const output = {
             assignedNtC: NtCToName(success.assignedNtC),
             assignedCANA: LLKAInstance.CANAToName(success.assignedCANA),
@@ -579,45 +591,231 @@ const classifyDinucleotides = (firstResidue, secondResidue) => {
         rcResult.delete();
 
         return output;
+        */
     }
 };
 
 const coortFlt = (f: number) => {
-    return f.toFixed(3).padStart(8, '0');
+    return f.toFixed(3).padStart(8, ' ');
 };
 
-const atomToPdbLine = (atom, serial: number) => {
-    return `ATOM  ${String(serial).padStart(5, '0')} ${atom.element_name.padEnd(4, ' ')}${String(atom.altloc).padStart(1, ' ')} ${atom.label_comp_id} ${atom.label_asym_id} ${String(atom.label_seq_id).padStart(4, '0')} ${String(atom.inscode).padStart(1, ' ')} ${coortFlt(atom.x)}${coortFlt(atom.y)}${coortFlt(atom.z)} 1.000 1.000${''.padEnd(10, ' ')}${atom.element_symbol.padStart(2, ' ')}`;
+const llkaAtomToPdbLine = (atom: LT.LLKAAtom, serial: number) => {
+    let altId = atom.label_alt_id === NO_ALTID ? '' : String.fromCodePoint(atom.label_alt_id);
+
+    return `ATOM  ${String(serial).padStart(5, '0')} ${atom.label_atom_id.padEnd(4, ' ')}${String(altId).padStart(1, ' ')} ${atom.label_comp_id} ${atom.label_asym_id} ${String(atom.label_seq_id).padStart(4, '0')} ${String(atom.pdbx_PDB_ins_code).padStart(1, ' ')} ${coortFlt(atom.coords.x)}${coortFlt(atom.coords.y)}${coortFlt(atom.coords.z)} 1.000 1.000${''.padEnd(10, ' ')}${atom.type_symbol.padStart(2, ' ')}`;
 };
 
-const superposeSpecificNtC = (NtC: number, firstResidue, secondResidue) => {
-    const atoms = [...firstResidue, ...secondResidue]
-
-    let structureAsPdbString = '';
-    for (let idx = 0; idx < atoms.length; idx++) {
-        structureAsPdbString += atomToPdbLine(atoms[idx], idx + 1) + "\n";
+function llkaStruToPdb(stru: LT.LLKAStructure) {
+    let pdbString = '';
+    for (let idx = 0; idx < stru.size(); idx++) {
+        const atom = stru.get(idx);
+        pdbString += llkaAtomToPdbLine(atom, idx + 1) + "\n";
     }
 
-    console.log(structureAsPdbString);
+    return pdbString;
+}
+
+const replaceBase = (molTainer: libcootApi.MoleculesContainerJS, anchorAtom: LT.LLKAAtom, newBase: string) => {
+    const anchor = `//${anchorAtom.label_asym_id}/${anchorAtom.label_seq_id}/${anchorAtom.auth_atom_id}${
+        anchorAtom.label_alt_id === NO_ALTID ? "" : ":" + String.fromCodePoint(anchorAtom.label_alt_id)
+    }`;
+
+    console.log('ANCHOR', anchor);
+
+    molTainer['mutate'](0, anchor, newBase);
+};
+
+function getStructureFromContainer(tainer: libcootApi.MoleculesContainerJS) {
+    tainer.writePDBASCII(0, 'dummy.pdb');
+    const pdb = libCootInstance.FS.readFile('dummy.pdb', { encoding: 'utf8' });
+    libCootInstance.FS_unlink('dummy.pdb');
+
+    return pdb;
+}
+
+function NtCNumberToNtCEnum(NtC: number) {
+    switch (NtC) {
+        case 0: return LLKAInstance.NtC.LLKA_AA00;
+        case 1: return LLKAInstance.NtC.LLKA_AA02;
+        case 2: return LLKAInstance.NtC.LLKA_AA03;
+        case 3: return LLKAInstance.NtC.LLKA_AA04;
+        case 4: return LLKAInstance.NtC.LLKA_AA08;
+        case 5: return LLKAInstance.NtC.LLKA_AA09;
+        case 6: return LLKAInstance.NtC.LLKA_AA01;
+        case 7: return LLKAInstance.NtC.LLKA_AA05;
+        case 8: return LLKAInstance.NtC.LLKA_AA06;
+        case 9: return LLKAInstance.NtC.LLKA_AA10;
+        case 10: return LLKAInstance.NtC.LLKA_AA11;
+        case 11: return LLKAInstance.NtC.LLKA_AA07;
+        case 12: return LLKAInstance.NtC.LLKA_AA12;
+        case 13: return LLKAInstance.NtC.LLKA_AA13;
+        case 14: return LLKAInstance.NtC.LLKA_AB01;
+        case 15: return LLKAInstance.NtC.LLKA_AB02;
+        case 16: return LLKAInstance.NtC.LLKA_AB03;
+        case 17: return LLKAInstance.NtC.LLKA_AB04;
+        case 18: return LLKAInstance.NtC.LLKA_AB05;
+        case 19: return LLKAInstance.NtC.LLKA_BA01;
+        case 20: return LLKAInstance.NtC.LLKA_BA05;
+        case 21: return LLKAInstance.NtC.LLKA_BA09;
+        case 22: return LLKAInstance.NtC.LLKA_BA08;
+        case 23: return LLKAInstance.NtC.LLKA_BA10;
+        case 24: return LLKAInstance.NtC.LLKA_BA13;
+        case 25: return LLKAInstance.NtC.LLKA_BA16;
+        case 26: return LLKAInstance.NtC.LLKA_BA17;
+        case 27: return LLKAInstance.NtC.LLKA_BB00;
+        case 28: return LLKAInstance.NtC.LLKA_BB01;
+        case 29: return LLKAInstance.NtC.LLKA_BB17;
+        case 30: return LLKAInstance.NtC.LLKA_BB02;
+        case 31: return LLKAInstance.NtC.LLKA_BB03;
+        case 32: return LLKAInstance.NtC.LLKA_BB11;
+        case 33: return LLKAInstance.NtC.LLKA_BB16;
+        case 34: return LLKAInstance.NtC.LLKA_BB04;
+        case 35: return LLKAInstance.NtC.LLKA_BB05;
+        case 36: return LLKAInstance.NtC.LLKA_BB07;
+        case 37: return LLKAInstance.NtC.LLKA_BB08;
+        case 38: return LLKAInstance.NtC.LLKA_BB10;
+        case 39: return LLKAInstance.NtC.LLKA_BB12;
+        case 40: return LLKAInstance.NtC.LLKA_BB13;
+        case 41: return LLKAInstance.NtC.LLKA_BB14;
+        case 42: return LLKAInstance.NtC.LLKA_BB15;
+        case 43: return LLKAInstance.NtC.LLKA_BB20;
+        case 44: return LLKAInstance.NtC.LLKA_IC01;
+        case 45: return LLKAInstance.NtC.LLKA_IC02;
+        case 46: return LLKAInstance.NtC.LLKA_IC03;
+        case 47: return LLKAInstance.NtC.LLKA_IC04;
+        case 48: return LLKAInstance.NtC.LLKA_IC05;
+        case 49: return LLKAInstance.NtC.LLKA_IC06;
+        case 50: return LLKAInstance.NtC.LLKA_IC07;
+        case 51: return LLKAInstance.NtC.LLKA_OP01;
+        case 52: return LLKAInstance.NtC.LLKA_OP02;
+        case 53: return LLKAInstance.NtC.LLKA_OP03;
+        case 54: return LLKAInstance.NtC.LLKA_OP04;
+        case 55: return LLKAInstance.NtC.LLKA_OP05;
+        case 56: return LLKAInstance.NtC.LLKA_OP06;
+        case 57: return LLKAInstance.NtC.LLKA_OP07;
+        case 58: return LLKAInstance.NtC.LLKA_OP08;
+        case 59: return LLKAInstance.NtC.LLKA_OP09;
+        case 60: return LLKAInstance.NtC.LLKA_OP10;
+        case 61: return LLKAInstance.NtC.LLKA_OP11;
+        case 62: return LLKAInstance.NtC.LLKA_OP12;
+        case 63: return LLKAInstance.NtC.LLKA_OP13;
+        case 64: return LLKAInstance.NtC.LLKA_OP14;
+        case 65: return LLKAInstance.NtC.LLKA_OP15;
+        case 66: return LLKAInstance.NtC.LLKA_OP16;
+        case 67: return LLKAInstance.NtC.LLKA_OP17;
+        case 68: return LLKAInstance.NtC.LLKA_OP18;
+        case 69: return LLKAInstance.NtC.LLKA_OP19;
+        case 70: return LLKAInstance.NtC.LLKA_OP20;
+        case 71: return LLKAInstance.NtC.LLKA_OP21;
+        case 72: return LLKAInstance.NtC.LLKA_OP22;
+        case 73: return LLKAInstance.NtC.LLKA_OP23;
+        case 74: return LLKAInstance.NtC.LLKA_OP24;
+        case 75: return LLKAInstance.NtC.LLKA_OP25;
+        case 76: return LLKAInstance.NtC.LLKA_OP26;
+        case 77: return LLKAInstance.NtC.LLKA_OP27;
+        case 78: return LLKAInstance.NtC.LLKA_OP28;
+        case 79: return LLKAInstance.NtC.LLKA_OP29;
+        case 80: return LLKAInstance.NtC.LLKA_OP30;
+        case 81: return LLKAInstance.NtC.LLKA_OP31;
+        case 82: return LLKAInstance.NtC.LLKA_OPS1;
+        case 83: return LLKAInstance.NtC.LLKA_OP1S;
+        case 84: return LLKAInstance.NtC.LLKA_AAS1;
+        case 85: return LLKAInstance.NtC.LLKA_AB1S;
+        case 86: return LLKAInstance.NtC.LLKA_AB2S;
+        case 87: return LLKAInstance.NtC.LLKA_BB1S;
+        case 88: return LLKAInstance.NtC.LLKA_BB2S;
+        case 89: return LLKAInstance.NtC.LLKA_BBS1;
+        case 90: return LLKAInstance.NtC.LLKA_ZZ01;
+        case 91: return LLKAInstance.NtC.LLKA_ZZ02;
+        case 92: return LLKAInstance.NtC.LLKA_ZZ1S;
+        case 93: return LLKAInstance.NtC.LLKA_ZZ2S;
+        case 94: return LLKAInstance.NtC.LLKA_ZZS1;
+        case 95: return LLKAInstance.NtC.LLKA_ZZS2;
+        default: throw new Error(`Invalid NtC index ${NtC}`);
+    }
+}
+
+function superposeNtC(NtC: LT.NtC, stru: LT.LLKAStructure) {
+    const ntcStru: LT.LLKAStructure = LLKAInstance.NtCStructure(NtC);
+
+    /*
+     * DISABLE FOR NOW
+    const ntcStruPdbString = llkaStruToPdb(ntcStru);
+    console.log(ntcStruPdbString);
     // Add the molecules to the Coot container
-    const molTainer = new libCootInstance.molecules_container_js(false);
-    molTainer.set_use_gemmi(false);
+    const molTainer = new libCootInstance.molecules_container_js(true);
+    molTainer.set_use_gemmi(true);
     molTainer.set_show_timings(false);
     molTainer.set_refinement_is_verbose(false);
     //molTainer.fill_rotamer_probability_tables();
     molTainer.set_map_sampling_rate(1.7);
     molTainer.set_map_is_contoured_with_thread_pool(false);
     molTainer.set_max_number_of_threads(1);
-    molTainer.read_coords_string(structureAsPdbString, 'AUX');;
 
-    //molTainer['mutate']
+    const ret = molTainer.read_coords_string(ntcStruPdbString, 'AUX');
+    console.log(ret);
 
-    const stru = atomsToLlkaStructure(atoms);
-    const NtCStru = LLKAInstance.NtCStructure(NtC);
+    console.log('before replacing');
+    console.log(getStructureFromContainer(molTainer));
 
+    // Use Coot to replace the bases
+    replaceBase(molTainer, ntcStru.get(0), firstResidue[0].label_comp_id);
+    for (let idx = 0; idx < ntcStru.size() - 1; idx++) {
+        const atom = ntcStru.get(idx);
+        if (atom.label_seq_id === 2) {
+            replaceBase(molTainer, atom, secondResidue[0].label_comp_id);
+            break;
+        }
+    }
 
-    console.log(NtCStru);
-    console.log(molTainer);
+    const fixedNtCStructurePdbString = getStructureFromContainer(molTainer);
+
+    console.log(fixedNtCStructurePdbString);
+    */
+
+    //
+    // Get the backbones of the reference NtC structure and the dinucleotide
+    // so that we can superpose the reference NtC onto the dinucleotide
+    //
+    const ntcBkbnRes = LLKAInstance.extractBackbone(ntcStru);
+    if (!ntcBkbnRes.isSuccess()) {
+        throw new Error(`Could not extract backbone from reference NtC structure. This should never happen: ${ntcBkbnRes.failure()}`)
+    }
+    const bkbnRes = LLKAInstance.extractBackbone(stru)
+    if (!bkbnRes.isSuccess()) {
+        ntcBkbnRes.delete();
+
+        throw new Error(`Could not extract backbone from structure: ${bkbnRes.failure()}`);
+    }
+
+    const ntcBkbn = ntcBkbnRes.success();
+    const bkbn = bkbnRes.success();
+
+    const matrix = LLKAInstance.superpositionMatrixStructures(ntcBkbn, bkbn).success();
+    LLKAInstance.applyTransformationStructure(ntcBkbn, matrix);
+
+    const rmsdRes = LLKAInstance.rmsd(ntcBkbn, bkbn);
+    if (!rmsdRes.isSuccess()) {
+        bkbn.delete();
+        ntcBkbn.delete();
+
+        throw new Error(`Could not calculate RMSD: ${rmsdRes.failure()}`);
+    }
+
+    LLKAInstance.applyTransformationStructure(ntcStru, matrix);
+
+    matrix.delete();
+    ntcBkbn.delete();
+    bkbn.delete();
+
+    const ret = {
+        superposedNtCStructure: llkaStruToPdb(ntcStru),
+        rmsd: rmsdRes.success(),
+    };
+
+    ntcStru.delete();
+
+    return ret;
 }
 
 onmessage = function(e) {
@@ -662,31 +860,77 @@ onmessage = function(e) {
             libCootInstance.FS_unlink("data_tmp/"+tarFileName)
             libCootInstance.FS.mkdir("COOT_BACKUP")
         });
-    } else if (message.command === 'ClassifyDinucleotide') {
-        const result = classifyDinucleotides(message.firstResidue, message.secondResidue);
+    } else if (message.command === 'SuperposeClosestNtC') {
+        const stru = atomsToLlkaStructure([...message.firstResidue, ...message.secondResidue]);
+        try {
+            const { assignedNtC, closestNtC } = classifyDinucleotide(stru);
+            const { superposedNtCStructure, rmsd } = superposeNtC(closestNtC, stru);
+            const { metrics, diffs } = calculateStepMetrics(stru, assignedNtC);
 
-        if (result) {
+            stru.delete();
+
+            const result = {
+                assignedNtC: NtCToName(assignedNtC),
+                closestNtC: NtCToName(closestNtC),
+                superposedNtCStructure,
+                rmsd,
+                metrics,
+                diffs,
+            };
+
             this.postMessage({
                 uuid: message.uuid,
-                command: 'ClassifyDinucleotide',
+                command: 'SuperposeClosestNtC',
                 success: true,
                 data: result,
             });
-        } else {
+        } catch (e) {
+            stru.delete();
+
+            console.error(e);
+
             this.postMessage({
                 uuid: message.uuid,
-                command: 'ClassifyDinucleotide',
+                command: 'SuperposeClosestNtC',
                 success: false,
+
             });
         }
     } else if (message.command === 'SuperposeSpecificNtC') {
-        const result = superposeSpecificNtC(message.NtC, message.firstResidue, message.secondResidue);
+        const stru = atomsToLlkaStructure([...message.firstResidue, ...message.secondResidue]);
+        try {
+            const NtC = NtCNumberToNtCEnum(message.NtC);
+            const { superposedNtCStructure, rmsd } = superposeNtC(NtC, stru);
+            const { metrics, diffs } = calculateStepMetrics(stru, NtC);
 
-        this.postMessage({
-            uuid: message.uuid,
-            command: 'SuperposeSpecificNtC',
-            success: true,
-            data: null,
-        });
+            stru.delete();
+
+            const result = {
+                assignedNtC: NtCToName(NtC),
+                closestNtC: NtCToName(NtC),
+                superposedNtCStructure,
+                rmsd,
+                metrics,
+                diffs,
+            }
+
+            this.postMessage({
+                uuid: message.uuid,
+                command: 'SuperposeSpecificNtC',
+                success: true,
+                data: result,
+            });
+        } catch (e) {
+            stru.delete();
+
+            console.error(e);
+
+            this.postMessage({
+                uuid: message.uuid,
+                command: 'SuperposeSpecificNtC',
+                success: false,
+
+            });
+        }
     }
 }

@@ -46,6 +46,7 @@ export const MoorhenNtcButton = (props: ContextButtonProps) => {
             setShownControl({
                 name: "modifyNtC",
                 payload: {
+                    molNo: props.selectedMolecule.molNo,
                     firstResidue,
                     secondResidue,
                },
