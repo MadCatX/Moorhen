@@ -265,6 +265,8 @@ export const ModifyNtC = () => {
         superposedNtC.current = new MoorhenMolecule(cc, mhi.store, mhi.paths.monomerLibraryPath);
         superposedNtC.current.setBackgroundColour([128, 128, 64, 1]);
         superposedNtC.current.defaultBondOptions.smoothness = 1.0;
+        superposedNtC.current.defaultColourRules = [];
+        superposedNtC.current.addColourRule("molecule", "//*", "#FFFF00", ["//*", "#FFFF00"], false, true);
 
         superposedNtC.current.loadToCootFromString(NtCStructure, "LLKA_NtC.pdb").then(() => {
             superposedNtC.current.fetchIfDirtyAndDraw("CBs");
