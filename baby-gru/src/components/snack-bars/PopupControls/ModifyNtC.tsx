@@ -1,11 +1,9 @@
 import { ClickAwayListener } from "@mui/material";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState, setShownControl } from "@/store";
-import { MoorhenStack } from "@/components/interface-base";
 import { gemmi } from "../../../types/gemmi";
-import { useCommandCentre } from "@/InstanceManager";
+import { useCommandCentre, useMoorhenInstance } from "@/InstanceManager";
 
-import { useMoorhenInstance } from "@/InstanceManager";
 import { MoorhenMolecule } from "../../../utils/MoorhenMolecule";
 
 import * as LT from "../../../types/llka";
@@ -214,6 +212,7 @@ export const ModifyNtC = () => {
     const [assignedNtC, setAssignedNtC] = useState('');
     const [closestNtC, setClosestNtC] = useState('');
     const [rmsd, setRmsd] = useState(0);
+    const [isCollapsed, setIsCollapsed] = useState(false);
 
     const superposedNtC = useRef<MoorhenMolecule | null>(null);
 
@@ -309,112 +308,122 @@ export const ModifyNtC = () => {
 
     useEffect(() => {
         superposeAndClassify();
-    }, [selectedAltlocs, selectedNtC]);
+    }, [selectedAltlocs, selectedNtC, shownControl.payload]);
 
     useEffect(() => {
         return () => removeSuperposedNtC(superposedNtC.current);
     }, []);
 
+    const torsions = (
+        <div>
+            <div>Torsions &amp; distances</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'auto auto auto'}}>
+                <div></div>
+                <div>Actual (deg)</div>
+                <div>{'\u03B4'} to NtC (deg)</div>
+
+                <div>{'\u018D'}1</div>
+                <div>{rad2deg(metrics?.delta_1)?.toFixed(2) ?? ''}</div>
+                <div>{rad2deg(metricsDiffs?.delta_1)?.toFixed(2) ?? ''} </div>
+
+                <div>{'\u025B'}1</div>
+                <div>{rad2deg(metrics?.epsilon_1)?.toFixed(2) ?? ''}</div>
+                <div>{rad2deg(metricsDiffs?.epsilon_1)?.toFixed(2) ?? ''}</div>
+
+                <div>{'\u03B6'}1</div>
+                <div>{rad2deg(metrics?.zeta_1)?.toFixed(2) ?? ''}</div>
+                <div>{rad2deg(metricsDiffs?.zeta_1)?.toFixed(2) ?? ''}</div>
+
+                <div>{'\u03B1'}2</div>
+                <div>{rad2deg(metrics?.alpha_2)?.toFixed(2) ?? ''}</div>
+                <div>{rad2deg(metricsDiffs?.alpha_2)?.toFixed(2) ?? ''}</div>
+
+                <div>{'\u03B2'}2</div>
+                <div>{rad2deg(metrics?.beta_2)?.toFixed(2) ?? ''}</div>
+                <div>{rad2deg(metricsDiffs?.beta_2)?.toFixed(2) ?? ''}</div>
+
+                <div>{'\u03B3'}2</div>
+                <div>{rad2deg(metrics?.gamma_2)?.toFixed(2) ?? ''}</div>
+                <div>{rad2deg(metricsDiffs?.gamma_2)?.toFixed(2) ?? ''}</div>
+
+                <div>{'\u03B4'}2</div>
+                <div>{rad2deg(metrics?.delta_2)?.toFixed(2) ?? ''}</div>
+                <div>{rad2deg(metricsDiffs?.delta_2)?.toFixed(2) ?? ''}</div>
+
+                <div>{'\u03C7'}1</div>
+                <div>{rad2deg(metrics?.chi_1)?.toFixed(2) ?? ''}</div>
+                <div>{rad2deg(metricsDiffs?.chi_1)?.toFixed(2) ?? ''}</div>
+
+                <div>{'\u03C7'}2</div>
+                <div>{rad2deg(metrics?.chi_2)?.toFixed(2) ?? ''}</div>
+                <div>{rad2deg(metricsDiffs?.chi_2)?.toFixed(2) ?? ''}</div>
+
+                <div>C&apos;C&apos;</div>
+                <div>{rad2deg(metrics?.CC)?.toFixed(2) ?? ''}</div>
+                <div>{rad2deg(metricsDiffs?.CC)?.toFixed(2) ?? ''}</div>
+
+                <div>N&apos;N&apos;</div>
+                <div>{rad2deg(metrics?.NN)?.toFixed(2) ?? ''}</div>
+                <div>{rad2deg(metricsDiffs?.NN)?.toFixed(2) ?? ''}</div>
+
+                <div>{'\u00B5'}</div>
+                <div>{rad2deg(metrics?.mu)?.toFixed(2) ?? ''}</div>
+                <div>{rad2deg(metricsDiffs?.mu)?.toFixed(2) ?? ''}</div>
+            </div>
+        </div>
+    );
+
     return (
-        <ClickAwayListener onClickAway={() => dispatch(setShownControl(null))}>
-            <MoorhenStack direction="vertical">
-                <div>Modify NtC</div>
+        <div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'auto auto' }}>
+                <div>Assigned NtC</div>
+                <div>{assignedNtC}</div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'auto auto' }}>
-                    <div>Assigned NtC</div>
-                    <div>{assignedNtC}</div>
+                <div>Closest NtC</div>
+                <div>{closestNtC}</div>
 
-                    <div>Closest NtC</div>
-                    <div>{closestNtC}</div>
+                <div>RMSD of displayed NtC</div>
+                <div>{rmsd.toFixed(3)}</div>
 
-                    <div>RMSD of displayed NtC</div>
-                    <div>{rmsd.toFixed(3)}</div>
-
-                    <div>Alt. conf</div>
-                    <div>
-                        <select
-                            value={selectedAltlocs}
-                            onChange={(v) => setSelectedAltlocs(v.currentTarget.value)}
-                        >
-                            {altlocCombinations.map(([tag, text], idx) => <option value={tag} key={idx}>{text}</option>)}
-                        </select>
-                    </div>
-
-                    <div>Displayed NtC</div>
-                    <div>
-                        <select
-                            value={selectedNtC}
-                            onChange={(v) => {
-                                const NtCIndex = parseInt(v.currentTarget.value);
-                                setSelectedNtC(NtCIndex);
-
-                                superposeAndClassify();
-                            }}
-                        >
-                            {NtCs.map((ntc, idx) => <option key={idx} value={idx - 1}>{ntc}</option>)}
-                        </select>
-
-                        <button onClick={() => setSelectedNtC(-1)} >Reset</button>
-                    </div>
+                <div>Alt. conf</div>
+                <div>
+                    <select
+                        value={selectedAltlocs}
+                        onChange={(v) => setSelectedAltlocs(v.currentTarget.value)}
+                    >
+                        {altlocCombinations.map(([tag, text], idx) => <option value={tag} key={idx}>{text}</option>)}
+                    </select>
                 </div>
 
-                <div>Torsions &amp; distances</div>
+                <div>Displayed NtC</div>
+                <div>
+                    <select
+                        value={selectedNtC}
+                        onChange={(v) => {
+                            const NtCIndex = parseInt(v.currentTarget.value);
+                            setSelectedNtC(NtCIndex);
 
+                            superposeAndClassify();
+                        }}
+                    >
+                        {NtCs.map((ntc, idx) => <option key={idx} value={idx - 1}>{ntc}</option>)}
+                    </select>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'auto auto auto'}}>
-                    <div></div>
-                    <div>Actual (deg)</div>
-                    <div>{'\u03B4'} to NtC (deg)</div>
-
-                    <div>{'\u018D'}1</div>
-                    <div>{rad2deg(metrics?.delta_1)?.toFixed(2) ?? ''}</div>
-                    <div>{rad2deg(metricsDiffs?.delta_1)?.toFixed(2) ?? ''} </div>
-
-                    <div>{'\u025B'}1</div>
-                    <div>{rad2deg(metrics?.epsilon_1)?.toFixed(2) ?? ''}</div>
-                    <div>{rad2deg(metricsDiffs?.epsilon_1)?.toFixed(2) ?? ''}</div>
-
-                    <div>{'\u03B6'}1</div>
-                    <div>{rad2deg(metrics?.zeta_1)?.toFixed(2) ?? ''}</div>
-                    <div>{rad2deg(metricsDiffs?.zeta_1)?.toFixed(2) ?? ''}</div>
-
-                    <div>{'\u03B1'}2</div>
-                    <div>{rad2deg(metrics?.alpha_2)?.toFixed(2) ?? ''}</div>
-                    <div>{rad2deg(metricsDiffs?.alpha_2)?.toFixed(2) ?? ''}</div>
-
-                    <div>{'\u03B2'}2</div>
-                    <div>{rad2deg(metrics?.beta_2)?.toFixed(2) ?? ''}</div>
-                    <div>{rad2deg(metricsDiffs?.beta_2)?.toFixed(2) ?? ''}</div>
-
-                    <div>{'\u03B3'}2</div>
-                    <div>{rad2deg(metrics?.gamma_2)?.toFixed(2) ?? ''}</div>
-                    <div>{rad2deg(metricsDiffs?.gamma_2)?.toFixed(2) ?? ''}</div>
-
-                    <div>{'\u03B4'}2</div>
-                    <div>{rad2deg(metrics?.delta_2)?.toFixed(2) ?? ''}</div>
-                    <div>{rad2deg(metricsDiffs?.delta_2)?.toFixed(2) ?? ''}</div>
-
-                    <div>{'\u03C7'}1</div>
-                    <div>{rad2deg(metrics?.chi_1)?.toFixed(2) ?? ''}</div>
-                    <div>{rad2deg(metricsDiffs?.chi_1)?.toFixed(2) ?? ''}</div>
-
-                    <div>{'\u03C7'}2</div>
-                    <div>{rad2deg(metrics?.chi_2)?.toFixed(2) ?? ''}</div>
-                    <div>{rad2deg(metricsDiffs?.chi_2)?.toFixed(2) ?? ''}</div>
-
-                    <div>C&apos;C&apos;</div>
-                    <div>{rad2deg(metrics?.CC)?.toFixed(2) ?? ''}</div>
-                    <div>{rad2deg(metricsDiffs?.CC)?.toFixed(2) ?? ''}</div>
-
-                    <div>N&apos;N&apos;</div>
-                    <div>{rad2deg(metrics?.NN)?.toFixed(2) ?? ''}</div>
-                    <div>{rad2deg(metricsDiffs?.NN)?.toFixed(2) ?? ''}</div>
-
-                    <div>{'\u00B5'}</div>
-                    <div>{rad2deg(metrics?.mu)?.toFixed(2) ?? ''}</div>
-                    <div>{rad2deg(metricsDiffs?.mu)?.toFixed(2) ?? ''}</div>
+                    <button onClick={() => setSelectedNtC(-1)} >Reset</button>
                 </div>
-            </MoorhenStack>
-        </ClickAwayListener>
+            </div>
+
+            {isCollapsed ? null : torsions}
+
+            <div>
+                <button onClick={() => dispatch(setShownControl(null))}>
+                    Close
+                </button>
+
+                <button onClick={() => setIsCollapsed(!isCollapsed)}>
+                    {isCollapsed ? 'Expand' : 'Collapse'}
+                </button>
+            </div>
+        </div>
     );
 }
