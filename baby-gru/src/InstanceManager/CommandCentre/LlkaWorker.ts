@@ -602,7 +602,7 @@ const coortFlt = (f: number) => {
 const llkaAtomToPdbLine = (atom: LT.LLKAAtom, serial: number) => {
     let altId = atom.label_alt_id === NO_ALTID ? '' : String.fromCodePoint(atom.label_alt_id);
 
-    return `ATOM  ${String(serial).padStart(5, '0')} ${atom.label_atom_id.padEnd(4, ' ')}${String(altId).padStart(1, ' ')} ${atom.label_comp_id} ${atom.label_asym_id} ${String(atom.label_seq_id).padStart(4, '0')} ${String(atom.pdbx_PDB_ins_code).padStart(1, ' ')} ${coortFlt(atom.coords.x)}${coortFlt(atom.coords.y)}${coortFlt(atom.coords.z)} 1.000 1.000${''.padEnd(10, ' ')}${atom.type_symbol.padStart(2, ' ')}`;
+    return `ATOM  ${String(serial).padStart(5, ' ')} ${atom.label_atom_id.padEnd(4, ' ')}${String(altId).padStart(1, ' ')}${atom.label_comp_id.padStart(3, ' ')} ${atom.label_asym_id}${String(atom.label_seq_id).padStart(4, ' ')}${String(atom.pdbx_PDB_ins_code).padStart(1, ' ')}   ${coortFlt(atom.coords.x)}${coortFlt(atom.coords.y)}${coortFlt(atom.coords.z)} 1.000 1.000${''.padEnd(10, ' ')}${atom.type_symbol.padStart(2, ' ')}`;
 };
 
 function llkaStruToPdb(stru: LT.LLKAStructure) {
@@ -615,22 +615,42 @@ function llkaStruToPdb(stru: LT.LLKAStructure) {
     return pdbString;
 }
 
+function getAnchorAtomForBaseReplacement(stru: LT.LLKAStructure, seqId: number) {
+    for (let idx = 0; idx < stru.size(); idx++) {
+        const atom = stru.get(idx);
+        if (atom.label_atom_id === 'N1' && atom.label_seq_id == seqId)
+            return atom;
+    }
+
+    throw new Error('Anchor atom for base replacement was not found');
+}
+
 const replaceBase = (molTainer: libcootApi.MoleculesContainerJS, anchorAtom: LT.LLKAAtom, newBase: string) => {
-    const anchor = `//${anchorAtom.label_asym_id}/${anchorAtom.label_seq_id}/${anchorAtom.auth_atom_id}${
+    const anchor = `/1/${anchorAtom.label_asym_id}/${anchorAtom.label_seq_id}(${anchorAtom.label_comp_id})/${anchorAtom.auth_atom_id}${
         anchorAtom.label_alt_id === NO_ALTID ? "" : ":" + String.fromCodePoint(anchorAtom.label_alt_id)
     }`;
 
     console.log('ANCHOR', anchor);
 
-    molTainer['mutate'](0, anchor, newBase);
+    molTainer['mutate_base'](0, anchor, newBase);
 };
 
-function getStructureFromContainer(tainer: libcootApi.MoleculesContainerJS) {
-    tainer.writePDBASCII(0, 'dummy.pdb');
-    const pdb = libCootInstance.FS.readFile('dummy.pdb', { encoding: 'utf8' });
-    libCootInstance.FS_unlink('dummy.pdb');
+function getStructureFromContainer(tainer: libcootApi.MoleculesContainerJS, format: 'pdb' | 'cif') {
+    switch (format) {
+        case 'cif': {
+            tainer.writeCIFASCII(0, 'dummy.dat');
+            break;
+        }
+        case 'pdb': {
+            tainer.writePDBASCII(0, 'dummy.dat');
+            break;
+        }
+    }
 
-    return pdb;
+    const text = libCootInstance.FS.readFile('dummy.dat', { encoding: 'utf8' });
+    libCootInstance.FS_unlink('dummy.dat');
+
+    return text;
 }
 
 function NtCNumberToNtCEnum(NtC: number) {
@@ -735,43 +755,61 @@ function NtCNumberToNtCEnum(NtC: number) {
     }
 }
 
-function superposeNtC(NtC: LT.NtC, stru: LT.LLKAStructure) {
+function fixUpNtCBases(NtC: LT.NtC, targetFirstBase: string, targetSecondBase: string) {
+    // Get the reference NtC structure and write it out as PDB
     const ntcStru: LT.LLKAStructure = LLKAInstance.NtCStructure(NtC);
-
-    /*
-     * DISABLE FOR NOW
     const ntcStruPdbString = llkaStruToPdb(ntcStru);
-    console.log(ntcStruPdbString);
+
     // Add the molecules to the Coot container
-    const molTainer = new libCootInstance.molecules_container_js(true);
+    const molTainer = new libCootInstance.molecules_container_js(false);
+
+    console.log(molTainer);
+
     molTainer.set_use_gemmi(true);
     molTainer.set_show_timings(false);
     molTainer.set_refinement_is_verbose(false);
-    //molTainer.fill_rotamer_probability_tables();
     molTainer.set_map_sampling_rate(1.7);
     molTainer.set_map_is_contoured_with_thread_pool(false);
     molTainer.set_max_number_of_threads(1);
 
-    const ret = molTainer.read_coords_string(ntcStruPdbString, 'AUX');
-    console.log(ret);
-
-    console.log('before replacing');
-    console.log(getStructureFromContainer(molTainer));
+    molTainer.read_coords_string(ntcStruPdbString, 'AUX');
 
     // Use Coot to replace the bases
-    replaceBase(molTainer, ntcStru.get(0), firstResidue[0].label_comp_id);
-    for (let idx = 0; idx < ntcStru.size() - 1; idx++) {
-        const atom = ntcStru.get(idx);
-        if (atom.label_seq_id === 2) {
-            replaceBase(molTainer, atom, secondResidue[0].label_comp_id);
-            break;
-        }
+    replaceBase(molTainer, getAnchorAtomForBaseReplacement(ntcStru, 1), targetFirstBase);
+    replaceBase(molTainer, getAnchorAtomForBaseReplacement(ntcStru, 2), targetSecondBase);
+
+    const fixedNtCStructureCifString = getStructureFromContainer(molTainer, 'cif');
+
+    console.log('PDB structure after replacing');
+    console.log(fixedNtCStructureCifString);
+
+    const fixedNtcStruRes = LLKAInstance.cifToStructure(fixedNtCStructureCifString, 4 | 8);
+    if (!fixedNtcStruRes.isSuccess()) {
+        const error = fixedNtcStruRes.failure().error;
+        throw new Error(`Could not create structure from the CIF string with the "fixed" NtC: ${error}`);
+    }
+    const fixedNtcStru = fixedNtcStruRes.success();
+    fixedNtcStruRes.delete();
+    ntcStru.delete();
+
+    //
+    // We have imported the structure as a PDB file but libcoot internals,
+    // specifically mmdb2, does not populate label_ fields when it gets
+    // PDB as the input. We need to fix this up ourselves.
+    //
+    const stru: LT.LLKAStructure = fixedNtcStru.structure;
+    for (let idx = 0; idx < stru.size(); idx++) {
+        const atom = stru.get(idx);
+        atom.label_seq_id = atom.auth_seq_id;
+        atom.label_comp_id = atom.auth_comp_id;
+        stru.set(idx, atom);
     }
 
-    const fixedNtCStructurePdbString = getStructureFromContainer(molTainer);
+    return stru;
+}
 
-    console.log(fixedNtCStructurePdbString);
-    */
+function superposeNtC(NtC: LT.NtC, stru: LT.LLKAStructure, targetFirstBase: string, targetSecondBase: string) {
+    const ntcStru = fixUpNtCBases(NtC, targetFirstBase, targetSecondBase);
 
     //
     // Get the backbones of the reference NtC structure and the dinucleotide
@@ -787,10 +825,13 @@ function superposeNtC(NtC: LT.NtC, stru: LT.LLKAStructure) {
 
         throw new Error(`Could not extract backbone from structure: ${bkbnRes.failure()}`);
     }
-
     const ntcBkbn = ntcBkbnRes.success();
     const bkbn = bkbnRes.success();
 
+    //
+    // Superpose the backbone of the reference NtC onto the backbone
+    // of the target dinucleotide so that we can calculate RMSD
+    //
     const matrix = LLKAInstance.superpositionMatrixStructures(ntcBkbn, bkbn).success();
     LLKAInstance.applyTransformationStructure(ntcBkbn, matrix);
 
@@ -802,6 +843,9 @@ function superposeNtC(NtC: LT.NtC, stru: LT.LLKAStructure) {
         throw new Error(`Could not calculate RMSD: ${rmsdRes.failure()}`);
     }
 
+    //
+    // Superpose the entire NtC onto the target dinucleotide
+    //
     LLKAInstance.applyTransformationStructure(ntcStru, matrix);
 
     matrix.delete();
@@ -862,9 +906,12 @@ onmessage = function(e) {
         });
     } else if (message.command === 'SuperposeClosestNtC') {
         const stru = atomsToLlkaStructure([...message.firstResidue, ...message.secondResidue]);
+        const targetFirstBase = stru.get(0).label_comp_id;
+        const targetSecondBase = stru.get(stru.size() - 1).label_comp_id;
+
         try {
             const { assignedNtC, closestNtC } = classifyDinucleotide(stru);
-            const { superposedNtCStructure, rmsd } = superposeNtC(closestNtC, stru);
+            const { superposedNtCStructure, rmsd } = superposeNtC(closestNtC, stru,  targetFirstBase, targetSecondBase);
             const { metrics, diffs } = calculateStepMetrics(stru, assignedNtC);
 
             stru.delete();
@@ -898,9 +945,12 @@ onmessage = function(e) {
         }
     } else if (message.command === 'SuperposeSpecificNtC') {
         const stru = atomsToLlkaStructure([...message.firstResidue, ...message.secondResidue]);
+        const targetFirstBase = stru.get(0).label_comp_id;
+        const targetSecondBase = stru.get(stru.size() - 1).label_comp_id;
+
         try {
             const NtC = NtCNumberToNtCEnum(message.NtC);
-            const { superposedNtCStructure, rmsd } = superposeNtC(NtC, stru);
+            const { superposedNtCStructure, rmsd } = superposeNtC(NtC, stru, targetFirstBase, targetSecondBase);
             const { metrics, diffs } = calculateStepMetrics(stru, NtC);
 
             stru.delete();

@@ -196,6 +196,7 @@ EMSCRIPTEN_BINDINGS(moorhen_container) {
     .function("get_chemical_features_mesh",&molecules_container_t::get_chemical_features_mesh)
     .function("set_imol_refinement_map",&molecules_container_t::set_imol_refinement_map)
     .function("mutate",&molecules_container_t::mutate)
+    .function("mutate_base",&molecules_container_t::mutate_base)
     .function("fill_partial_residue",&molecules_container_t::fill_partial_residue)
     .function("fill_partial_residues",&molecules_container_t::fill_partial_residues)
     .function("add_alternative_conformation",&molecules_container_t::add_alternative_conformation)

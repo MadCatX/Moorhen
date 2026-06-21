@@ -8,6 +8,7 @@ import { MoorhenMolecule } from "../../../utils/MoorhenMolecule";
 
 import * as LT from "../../../types/llka";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ModalKey } from "@/components/interface-base/ModalBase/ModalsContainer";
 
 type Classification = {
     assignedNtC: string,
@@ -152,7 +153,7 @@ function makeLlkaResidue(gemmiResidue: gemmi.Residue, filterAltloc: string) {
                 element_symbol: gemmiAtom.element.name(),
                 label_atom_id: gemmiAtom.name,
                 label_comp_id: gemmiResidue.name,
-                label_asym_id: 'X', // The actual chain name is irrelevvant
+                label_asym_id: 'X', // Chain does not matter
                 id: gemmiAtom.serial,
                 x: gemmiAtom.pos.x,
                 y: gemmiAtom.pos.y,
@@ -201,6 +202,7 @@ function rad2deg(r?: number) {
 export const ModifyNtC = () => {
     const dispatch = useDispatch();
     const shownControl = useSelector((state: RootState) => state.globalUI.shownControl);
+    const targetMolNo = shownControl?.name === "modifyNtC" ? shownControl.payload?.molNo : 0;
 
     const cc = useCommandCentre();
     const mhi = useMoorhenInstance();
@@ -418,8 +420,28 @@ export const ModifyNtC = () => {
             {isCollapsed ? null : torsions}
 
             <div>
+                <button onClick={async () => {
+                    const firstResidue =  shownControl?.name === "modifyNtC" ? shownControl.payload?.firstResidue : void 0;
+                    //const refCid = `//${firstResidue.
+
+                    const resp = await cc.current.cootCommand(
+                        {
+                            command: "match_ligand_torsions_and_position_using_cid",
+                            commandArgs: [superposedNtC.current.molNo, targetMolNo, "//A/*/*"],
+                            returnType: "boolean"
+                        },
+                        false
+                    );
+
+                    console.log('APPLY NTC:', resp);
+
+                    dispatch(setShownControl(null));
+                }}>
+                    OK
+                </button>
+
                 <button onClick={() => dispatch(setShownControl(null))}>
-                    Close
+                    Cancel
                 </button>
 
                 <button onClick={() => setIsCollapsed(!isCollapsed)}>

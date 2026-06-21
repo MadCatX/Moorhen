@@ -34,6 +34,8 @@ export const AcceptRejectMatchingLigand = () => {
             return;
         }
 
+        console.log('REF LIG CID', props.refLigandCid);
+
         copyMovingMoleculeRef.current = await movingMolecule.copyFragmentUsingCid(props.movingLigandCid, false);
 
         const result = (await commandCentre.current.cootCommand(
