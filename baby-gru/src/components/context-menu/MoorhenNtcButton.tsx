@@ -19,7 +19,7 @@ function findResidue(molecule: moorhen.Molecule, atom: moorhen.ResidueSpec, next
                 continue;
             }
 
-            return residue;
+            return { chain, residue };
         }
     }
 

@@ -515,18 +515,18 @@ function atomsToLlkaStructure(atoms) {
         const a = CLLKAAtom(
             atom.element_name,
             atom.label_atom_id,
-            '1', // Not necessary for NtC classification
+            '', // Not necessary for NtC classification
             atom.label_comp_id,
-            '',
-            atom.label_atom_id,
-            '',
-            '',
+            atom.label_asym_id,
+            atom.label_atom_id, // Auth
+            atom.label_comp_id, // Auth
+            atom.label_asym_id, // Auth
             CLLKAPoint(atom.x, atom.y, atom.z),
             atom.id,
             atom.label_seq_id,
             atom.auth_seq_id,
             1, // Not necessary for NtC classification
-            '',
+            atom.inscode,
             altloc
         );
 
@@ -544,6 +544,9 @@ function calculateStepMetrics(stru: LT.LLKAStructure, NtC: LT.NtC) {
 }
 
 function classifyDinucleotide(stru: LT.LLKAStructure) {
+    console.log('CLASS STRU');
+    console.log(llkaStruToPdb(stru));
+
     const rcResult = LLKAInstance.classifyStep(stru, LLKAClassificationCtx);
     if (!rcResult.isSuccess()) {
         const error = `Failed to classify step: ${LLKAInstance.errorToString(rcResult.failure())}`;
@@ -561,37 +564,6 @@ function classifyDinucleotide(stru: LT.LLKAStructure) {
             assignedNtC: assignedNtC,
             closestNtC: closestNtC,
         };
-        /*
-        const output = {
-            assignedNtC: NtCToName(success.assignedNtC),
-            assignedCANA: LLKAInstance.CANAToName(success.assignedCANA),
-            closestNtC: NtCToName(success.closestNtC),
-            closestCANA: LLKAInstance.CANAToName(success.closestCANA),
-            confalScore: success.confalScore,
-            euclideanDistanceNtCIdeal: success.euclideanDistanceNtCIdeal,
-            metrics: success.metrics,
-            differencesFromNtCAverages: success.differencesFromNtCAverages,
-            nuAngles_1: success.nuAngles_1,
-            nuAngles_2: success.nuAngles_2,
-            ribosePseudorotation_1: success.ribosePseudorotation_1,
-            ribosePseudorotation_2: success.ribosePseudorotation_2,
-            tau_1: success.tau_1,
-            tau_2: success.tau_2,
-            sugarPucker_1: LLKAInstance.sugarPuckerToName(success.sugarPucker_1, 0),
-            sugarPucker_2: LLKAInstance.sugarPuckerToName(success.sugarPucker_2, 0),
-            nuAngleDifferences_1: success.nuAngleDifferences_1,
-            nuAngleDifferences_2: success.nuAngleDifferences_2,
-            rmsdToClosestNtC: success.rmsdToClosestNtC,
-            closestGoldenStep: success.closestGoldenStep,
-            violations: success.violations,
-            violatingTorsionsAverage: success.violatingTorsionsAverage,
-            violatingTorsionsNearest: success.violatingTorsionsNearest,
-        };
-
-        rcResult.delete();
-
-        return output;
-        */
     }
 };
 
@@ -600,9 +572,9 @@ const coortFlt = (f: number) => {
 };
 
 const llkaAtomToPdbLine = (atom: LT.LLKAAtom, serial: number) => {
-    let altId = atom.label_alt_id === NO_ALTID ? '' : String.fromCodePoint(atom.label_alt_id);
+    let altId = atom.label_alt_id === NO_ALTID ? ' ' : String.fromCodePoint(atom.label_alt_id);
 
-    return `ATOM  ${String(serial).padStart(5, ' ')} ${atom.label_atom_id.padEnd(4, ' ')}${String(altId).padStart(1, ' ')}${atom.label_comp_id.padStart(3, ' ')} ${atom.label_asym_id}${String(atom.label_seq_id).padStart(4, ' ')}${String(atom.pdbx_PDB_ins_code).padStart(1, ' ')}   ${coortFlt(atom.coords.x)}${coortFlt(atom.coords.y)}${coortFlt(atom.coords.z)} 1.000 1.000${''.padEnd(10, ' ')}${atom.type_symbol.padStart(2, ' ')}`;
+    return `ATOM  ${String(serial).padStart(5, ' ')} ${atom.label_atom_id.padEnd(4, ' ')}${String(altId).padStart(1, ' ')}${atom.label_comp_id.padStart(3, ' ')} ${atom.label_asym_id.padStart(1, ' ')}${String(atom.label_seq_id).padStart(4, ' ')}${String(atom.pdbx_PDB_ins_code).padStart(1, ' ')}   ${coortFlt(atom.coords.x)}${coortFlt(atom.coords.y)}${coortFlt(atom.coords.z)} 1.000 1.000${''.padEnd(10, ' ')}${atom.type_symbol.padStart(2, ' ')}`;
 };
 
 function llkaStruToPdb(stru: LT.LLKAStructure) {
@@ -762,9 +734,6 @@ function fixUpNtCBases(NtC: LT.NtC, targetFirstBase: string, targetSecondBase: s
 
     // Add the molecules to the Coot container
     const molTainer = new libCootInstance.molecules_container_js(false);
-
-    console.log(molTainer);
-
     molTainer.set_use_gemmi(true);
     molTainer.set_show_timings(false);
     molTainer.set_refinement_is_verbose(false);
@@ -779,10 +748,6 @@ function fixUpNtCBases(NtC: LT.NtC, targetFirstBase: string, targetSecondBase: s
     replaceBase(molTainer, getAnchorAtomForBaseReplacement(ntcStru, 2), targetSecondBase);
 
     const fixedNtCStructureCifString = getStructureFromContainer(molTainer, 'cif');
-
-    console.log('PDB structure after replacing');
-    console.log(fixedNtCStructureCifString);
-
     const fixedNtcStruRes = LLKAInstance.cifToStructure(fixedNtCStructureCifString, 4 | 8);
     if (!fixedNtcStruRes.isSuccess()) {
         const error = fixedNtcStruRes.failure().error;
@@ -812,18 +777,57 @@ function superposeNtC(NtC: LT.NtC, stru: LT.LLKAStructure, targetFirstBase: stri
     const ntcStru = fixUpNtCBases(NtC, targetFirstBase, targetSecondBase);
 
     //
+    // Relabel atoms in the NtC base so that they correspond to the dinucleotide
+    // we are superposing against.
+    //
+    let firstSeqId = stru.get(0).label_seq_id;
+    let secondSeqId = stru.get(stru.size()-1).label_seq_id;
+    for (let idx = 0; idx < ntcStru.size(); idx++) {
+        const ntcAtom = ntcStru.get(idx);
+        const seqId = ntcAtom.label_seq_id === 1 ? firstSeqId : secondSeqId;
+
+        for (let jdx = 0; jdx < stru.size(); jdx++) {
+            const atom = stru.get(jdx);
+            if (ntcAtom.label_atom_id === atom.label_atom_id && seqId === atom.label_seq_id) {
+                ntcAtom.id = atom.id;
+                ntcAtom.auth_seq_id = atom.auth_seq_id;
+                ntcAtom.auth_asym_id = atom.auth_asym_id;
+                ntcAtom.auth_atom_id = atom.auth_atom_id;
+                ntcAtom.auth_comp_id = atom.auth_comp_id;
+                ntcAtom.label_alt_id = atom.label_alt_id;
+                ntcAtom.label_seq_id = atom.label_seq_id;
+                ntcAtom.label_asym_id = atom.label_asym_id;
+                ntcAtom.label_comp_id = atom.label_comp_id;
+                ntcAtom.label_atom_id = atom.label_atom_id;
+                ntcAtom.label_entity_id = atom.label_entity_id;
+                ntcAtom.pdbx_PDB_ins_code = atom.pdbx_PDB_ins_code;
+                ntcAtom.pdbx_PDB_model_num = atom.pdbx_PDB_model_num;
+
+                ntcStru.set(idx, ntcAtom);
+
+                break;
+            }
+        }
+    }
+
+    console.log('Stru');
+    console.log(llkaStruToPdb(stru));
+    console.log('NtC stru');
+    console.log(llkaStruToPdb(ntcStru));
+
+    //
     // Get the backbones of the reference NtC structure and the dinucleotide
     // so that we can superpose the reference NtC onto the dinucleotide
     //
     const ntcBkbnRes = LLKAInstance.extractBackbone(ntcStru);
     if (!ntcBkbnRes.isSuccess()) {
-        throw new Error(`Could not extract backbone from reference NtC structure. This should never happen: ${ntcBkbnRes.failure()}`)
+        throw new Error(`Could not extract backbone from reference NtC structure. This should never happen: ${LLKAInstance.errorToString(ntcBkbnRes.failure())}`)
     }
     const bkbnRes = LLKAInstance.extractBackbone(stru)
     if (!bkbnRes.isSuccess()) {
         ntcBkbnRes.delete();
 
-        throw new Error(`Could not extract backbone from structure: ${bkbnRes.failure()}`);
+        throw new Error(`Could not extract backbone from structure: ${LLKAInstance.errorToString(bkbnRes.failure())}`);
     }
     const ntcBkbn = ntcBkbnRes.success();
     const bkbn = bkbnRes.success();
@@ -840,7 +844,7 @@ function superposeNtC(NtC: LT.NtC, stru: LT.LLKAStructure, targetFirstBase: stri
         bkbn.delete();
         ntcBkbn.delete();
 
-        throw new Error(`Could not calculate RMSD: ${rmsdRes.failure()}`);
+        throw new Error(`Could not calculate RMSD: ${LLKAInstance.errorToString(rmsdRes.failure())}`);
     }
 
     //

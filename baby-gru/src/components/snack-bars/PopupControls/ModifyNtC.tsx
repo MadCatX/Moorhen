@@ -1,14 +1,14 @@
-import { ClickAwayListener } from "@mui/material";
 import { useDispatch, useSelector } from "react-redux";
-import { RootState, setShownControl } from "@/store";
+import { RootState, setShownControl, triggerUpdate } from "@/store";
 import { gemmi } from "../../../types/gemmi";
 import { useCommandCentre, useMoorhenInstance } from "@/InstanceManager";
 
 import { MoorhenMolecule } from "../../../utils/MoorhenMolecule";
 
+import { moorhen } from "../../../types/moorhen";
+
 import * as LT from "../../../types/llka";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ModalKey } from "@/components/interface-base/ModalBase/ModalsContainer";
 
 type Classification = {
     assignedNtC: string,
@@ -141,27 +141,28 @@ function altlocToStr(codepoint: number) {
     return String.fromCodePoint(codepoint);
 }
 
-function makeLlkaResidue(gemmiResidue: gemmi.Residue, filterAltloc: string) {
+function makeLlkaResidue(residue: { chain: gemmi.Chain, residue: gemmi.Residue }, filterAltloc: string) {
     const atoms = [];
 
-    for (let idx = 0; idx < gemmiResidue.atoms.size(); idx++) {
-        const gemmiAtom = gemmiResidue.atoms.get(idx);
+    for (let idx = 0; idx < residue.residue.atoms.size(); idx++) {
+        const gemmiAtom = residue.residue.atoms.get(idx);
         const altloc = altlocToStr(gemmiAtom.altloc_or(0));
         if (altloc === '' || altloc === filterAltloc) {
             atoms.push({
                 element_name: gemmiAtom.name,
                 element_symbol: gemmiAtom.element.name(),
                 label_atom_id: gemmiAtom.name,
-                label_comp_id: gemmiResidue.name,
-                label_asym_id: 'X', // Chain does not matter
+                label_comp_id: residue.residue.name,
+                label_asym_id: residue.chain.name,
                 id: gemmiAtom.serial,
                 x: gemmiAtom.pos.x,
                 y: gemmiAtom.pos.y,
                 z: gemmiAtom.pos.z,
-                label_seq_id: gemmiResidue.seqid.num.value,
-                auth_seq_id: gemmiResidue.seqid.num.value, // Placeholder
+                label_seq_id: residue.residue.seqid.num.value,
+                auth_seq_id: residue.residue.seqid.num.value, // Placeholder
+                auth_asym_id: residue.chain.name,
                 altloc: altlocToStr(gemmiAtom.altloc_or(0)),
-                inscode: gemmiResidue.seqid.str(),
+                inscode: '', // NO! This is wrong
             });
         }
     }
@@ -184,13 +185,13 @@ function gatherAltLocs(residue: gemmi.Residue) {
     return Array.from(altlocs);
 }
 
-function removeSuperposedNtC(molecule?: MoorhenMolecule) {
+async function removeSuperposedNtC(molecule?: MoorhenMolecule) {
     if (molecule) {
         for (const r of molecule.representations) {
             r.hide();
             molecule.removeRepresentation(r.uniqueId);
         }
-        molecule.delete(true);
+        await molecule.delete(true);
     }
 }
 
@@ -203,6 +204,8 @@ export const ModifyNtC = () => {
     const dispatch = useDispatch();
     const shownControl = useSelector((state: RootState) => state.globalUI.shownControl);
     const targetMolNo = shownControl?.name === "modifyNtC" ? shownControl.payload?.molNo : 0;
+
+    const molecules = useSelector((state: moorhen.State) => state.molecules.moleculeList);
 
     const cc = useCommandCentre();
     const mhi = useMoorhenInstance();
@@ -224,8 +227,8 @@ export const ModifyNtC = () => {
 
         if (!firstResidue || !secondResidue) return ["-^-"];
 
-        let altlocsFirst = gatherAltLocs(firstResidue);
-        let altlocsSecond = gatherAltLocs(secondResidue);
+        let altlocsFirst = gatherAltLocs(firstResidue.residue);
+        let altlocsSecond = gatherAltLocs(secondResidue.residue);
         if (altlocsFirst.length === 0) altlocsFirst.push(null);
         if (altlocsSecond.length === 0) altlocsSecond.push(null);
 
@@ -260,8 +263,8 @@ export const ModifyNtC = () => {
         return [first, second];
     }, [shownControl, selectedAltlocs]);
 
-    const superposeNtC = (NtCStructure: string) => {
-        removeSuperposedNtC(superposedNtC.current);
+    const superposeNtC = async (NtCStructure: string) => {
+        await removeSuperposedNtC(superposedNtC.current);
         superposedNtC.current = null;
 
         superposedNtC.current = new MoorhenMolecule(cc, mhi.store, mhi.paths.monomerLibraryPath);
@@ -270,7 +273,7 @@ export const ModifyNtC = () => {
         superposedNtC.current.defaultColourRules = [];
         superposedNtC.current.addColourRule("molecule", "//*", "#FFFF00", ["//*", "#FFFF00"], false, true);
 
-        superposedNtC.current.loadToCootFromString(NtCStructure, "LLKA_NtC.pdb").then(() => {
+        superposedNtC.current.loadToCootFromString(NtCStructure, "LLKA_NtC.cif").then(() => {
             superposedNtC.current.fetchIfDirtyAndDraw("CBs");
         });
     }
@@ -315,7 +318,7 @@ export const ModifyNtC = () => {
     }, [selectedAltlocs, selectedNtC, shownControl.payload]);
 
     useEffect(() => {
-        return () => removeSuperposedNtC(superposedNtC.current);
+        return () => { removeSuperposedNtC(superposedNtC.current); }
     }, []);
 
     const torsions = (
@@ -421,19 +424,46 @@ export const ModifyNtC = () => {
 
             <div>
                 <button onClick={async () => {
-                    const firstResidue =  shownControl?.name === "modifyNtC" ? shownControl.payload?.firstResidue : void 0;
-                    //const refCid = `//${firstResidue.
+                    const molecule = molecules.find(molecule => molecule.molNo === targetMolNo);
+                    if (!molecule) {
+                        console.error('No molecule');
+                        return;
+                    }
 
-                    const resp = await cc.current.cootCommand(
+                    const deletions = [];
+                    const gemmiStru = superposedNtC.current.gemmiStructure;
+                    const gemmiChains = gemmiStru.first_model().chains;
+                    for (let chainIdx = 0; chainIdx < gemmiChains.size(); chainIdx++) {
+                        const chain = gemmiChains.get(chainIdx);
+
+                        for (let resIdx = 0; resIdx < chain.residues.size(); resIdx++) {
+                            const residue = chain.residues.get(resIdx);
+
+                            for (let atomIdx = 0; atomIdx < residue.atoms.size(); atomIdx++) {
+                                const atom = residue.atoms.get(atomIdx);
+
+                                const d = molecule.deleteCid(`//${chain.name}/${residue.seqid.num.value}/${atom.name}:*`);
+                                deletions.push(d);
+                            }
+                        }
+                    }
+                    await Promise.all(deletions);
+
+                    await molecule.mergeMolecules([superposedNtC.current], false);
+                    molecule.setAtomsDirty(true);
+                    await removeSuperposedNtC();
+                    await molecule.redraw();
+
+                    dispatch(triggerUpdate(targetMolNo));
+
+                    await cc.current.cootCommand(
                         {
-                            command: "match_ligand_torsions_and_position_using_cid",
-                            commandArgs: [superposedNtC.current.molNo, targetMolNo, "//A/*/*"],
-                            returnType: "boolean"
+                            command: "end_delete_closed_molecules",
+                            commandArgs: [],
+                            returnType: "void",
                         },
                         false
                     );
-
-                    console.log('APPLY NTC:', resp);
 
                     dispatch(setShownControl(null));
                 }}>
