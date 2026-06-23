@@ -513,12 +513,12 @@ function atomsToLlkaStructure(atoms) {
         const altloc = atom.altloc === '' ? NO_ALTID : atom.altloc.codePointAt(0);
 
         const a = CLLKAAtom(
-            atom.element_name,
-            atom.label_atom_id,
+            atom.element_name.trim(),
+            atom.label_atom_id.trim(),
             '', // Not necessary for NtC classification
             atom.label_comp_id,
             atom.label_asym_id,
-            atom.label_atom_id, // Auth
+            atom.label_atom_id.trim(), // Auth
             atom.label_comp_id, // Auth
             atom.label_asym_id, // Auth
             CLLKAPoint(atom.x, atom.y, atom.z),
@@ -574,7 +574,7 @@ const coortFlt = (f: number) => {
 const llkaAtomToPdbLine = (atom: LT.LLKAAtom, serial: number) => {
     let altId = atom.label_alt_id === NO_ALTID ? ' ' : String.fromCodePoint(atom.label_alt_id);
 
-    return `ATOM  ${String(serial).padStart(5, ' ')} ${atom.label_atom_id.padEnd(4, ' ')}${String(altId).padStart(1, ' ')}${atom.label_comp_id.padStart(3, ' ')} ${atom.label_asym_id.padStart(1, ' ')}${String(atom.label_seq_id).padStart(4, ' ')}${String(atom.pdbx_PDB_ins_code).padStart(1, ' ')}   ${coortFlt(atom.coords.x)}${coortFlt(atom.coords.y)}${coortFlt(atom.coords.z)} 1.000 1.000${''.padEnd(10, ' ')}${atom.type_symbol.padStart(2, ' ')}`;
+    return `ATOM  ${String(serial).padStart(5, ' ')} ${atom.label_atom_id.padEnd(4, ' ')}${String(altId).padStart(1, ' ')}${atom.label_comp_id.padStart(3, ' ')} ${atom.label_asym_id.padStart(1, ' ')}${String(atom.label_seq_id).padStart(4, ' ')}${String(atom.pdbx_PDB_ins_code).padStart(1, ' ')}   ${coortFlt(atom.coords.x)}${coortFlt(atom.coords.y)}${coortFlt(atom.coords.z)} 1.000 1.000${''.padEnd(10, ' ')}${atom.label_atom_id.padEnd(3, ' ')}`;
 };
 
 function llkaStruToPdb(stru: LT.LLKAStructure) {
