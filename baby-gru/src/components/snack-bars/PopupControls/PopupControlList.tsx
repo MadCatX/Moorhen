@@ -20,7 +20,7 @@ import { gemmi } from "../../../types/gemmi";
 type PayloadType = Record<
     string,
     string | string[] | number | number[] | boolean | boolean[] | moorhen.ResidueSpec | moorhen.ResidueSpec[] | undefined |
-    gemmi.Residue
+    { chain: gemmi.Chain, residue: gemmi.Residue }
 >;
 
 type ValidatePayloadMap<T extends Record<string, PayloadType | undefined>> = T;
@@ -42,8 +42,8 @@ type PayloadMap = ValidatePayloadMap<{
     fillAllAtoms: { residueList: string[]; selectedMolecule: number };
     modifyNtC: {
         molNo: number,
-        firstResidue: gemmi.Residue,
-        secondResidue: gemmi.Residue,
+        firstResidue: { chain: gemmi.Chain, residue: gemmi.Residue },
+        secondResidue: { chain: gemmi.Chain, residue: gemmi.Residue },
     };
 }>;
 
