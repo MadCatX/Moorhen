@@ -430,6 +430,7 @@ export const ModifyNtC = () => {
                         return;
                     }
 
+                    /*
                     const deletions = [];
                     const gemmiStru = superposedNtC.current.gemmiStructure;
                     const gemmiChains = gemmiStru.first_model().chains;
@@ -464,6 +465,38 @@ export const ModifyNtC = () => {
                         },
                         false
                     );
+                    */
+
+                    const firstResidue =  shownControl?.name === "modifyNtC" ? shownControl.payload?.firstResidue : void 0;
+                    const secondResidue = shownControl?.name === "modifyNtC" ? shownControl.payload?.secondResidue : void 0;
+
+                    const cidFirst =  `//${firstResidue.chain.name}/${firstResidue.residue.seqid.num.value}/*`;
+                    const cidSecond =  `//${secondResidue.chain.name}/${secondResidue.residue.seqid.num.value}/*`;
+
+                    await cc.current.cootCommand(
+                        {
+                            returnType: "status",
+                            command: "replace_fragment",
+                            commandArgs: [targetMolNo, superposedNtC.current.molNo, cidFirst],
+                            changesMolecules: [targetMolNo],
+                        },
+                        false
+                    );
+                    await cc.current.cootCommand(
+                        {
+                            returnType: "status",
+                            command: "replace_fragment",
+                            commandArgs: [targetMolNo, superposedNtC.current.molNo, cidSecond],
+                            changesMolecules: [targetMolNo],
+                        },
+                        false
+                    );
+
+                    molecule.setAtomsDirty(true);
+                    await removeSuperposedNtC();
+                    await molecule.redraw();
+
+                    dispatch(triggerUpdate(targetMolNo));
 
                     dispatch(setShownControl(null));
                 }}>
