@@ -430,43 +430,6 @@ export const ModifyNtC = () => {
                         return;
                     }
 
-                    /*
-                    const deletions = [];
-                    const gemmiStru = superposedNtC.current.gemmiStructure;
-                    const gemmiChains = gemmiStru.first_model().chains;
-                    for (let chainIdx = 0; chainIdx < gemmiChains.size(); chainIdx++) {
-                        const chain = gemmiChains.get(chainIdx);
-
-                        for (let resIdx = 0; resIdx < chain.residues.size(); resIdx++) {
-                            const residue = chain.residues.get(resIdx);
-
-                            for (let atomIdx = 0; atomIdx < residue.atoms.size(); atomIdx++) {
-                                const atom = residue.atoms.get(atomIdx);
-
-                                const d = molecule.deleteCid(`//${chain.name}/${residue.seqid.num.value}/${atom.name}:*`);
-                                deletions.push(d);
-                            }
-                        }
-                    }
-                    await Promise.all(deletions);
-
-                    await molecule.mergeMolecules([superposedNtC.current], false);
-                    molecule.setAtomsDirty(true);
-                    await removeSuperposedNtC();
-                    await molecule.redraw();
-
-                    dispatch(triggerUpdate(targetMolNo));
-
-                    await cc.current.cootCommand(
-                        {
-                            command: "end_delete_closed_molecules",
-                            commandArgs: [],
-                            returnType: "void",
-                        },
-                        false
-                    );
-                    */
-
                     const firstResidue =  shownControl?.name === "modifyNtC" ? shownControl.payload?.firstResidue : void 0;
                     const secondResidue = shownControl?.name === "modifyNtC" ? shownControl.payload?.secondResidue : void 0;
 
@@ -477,16 +440,7 @@ export const ModifyNtC = () => {
                         {
                             returnType: "status",
                             command: "replace_fragment",
-                            commandArgs: [targetMolNo, superposedNtC.current.molNo, cidFirst],
-                            changesMolecules: [targetMolNo],
-                        },
-                        false
-                    );
-                    await cc.current.cootCommand(
-                        {
-                            returnType: "status",
-                            command: "replace_fragment",
-                            commandArgs: [targetMolNo, superposedNtC.current.molNo, cidSecond],
+                            commandArgs: [targetMolNo, superposedNtC.current.molNo, `${cidFirst}||${cidSecond}`],
                             changesMolecules: [targetMolNo],
                         },
                         false
