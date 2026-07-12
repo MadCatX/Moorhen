@@ -537,8 +537,24 @@ function atomsToLlkaStructure(atoms) {
 }
 
 function calculateStepMetrics(stru: LT.LLKAStructure, NtC: LT.NtC) {
-    const metrics = LLKAInstance.calculateStepMetrics(stru).success();
-    const diffs = LLKAInstance.calculateStepMetricsDifferenceAgainstReference(stru, NtC).success();
+    const metricsRes = LLKAInstance.calculateStepMetrics(stru);
+    if (!metricsRes.isSuccess()) {
+        const error = LLKAInstance.errorToString(metricsRes.failure());
+        metricsRes.delete();
+
+        throw new Error(`Failed to calculate step metrics: ${error}`);
+    }
+    const metrics = metricsRes.success();
+
+    const diffsRes = LLKAInstance.calculateStepMetricsDifferenceAgainstReference(stru, NtC);
+    if (!diffsRes.isSuccess()) {
+        const error = LLKAInstance.errorToString(diffsRes.failure());
+        diffsRes.delete();
+
+
+        throw new Error(`Failed to calculate step metrics differences: ${error}`);
+    }
+    const diffs = diffsRes.success();
 
     return { metrics, diffs };
 }
@@ -916,7 +932,7 @@ onmessage = function(e) {
         try {
             const { assignedNtC, closestNtC } = classifyDinucleotide(stru);
             const { superposedNtCStructure, rmsd } = superposeNtC(closestNtC, stru,  targetFirstBase, targetSecondBase);
-            const { metrics, diffs } = calculateStepMetrics(stru, assignedNtC);
+            const { metrics, diffs } = calculateStepMetrics(stru, closestNtC);
 
             stru.delete();
 

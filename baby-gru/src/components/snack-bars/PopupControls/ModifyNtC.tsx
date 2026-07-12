@@ -324,65 +324,65 @@ export const ModifyNtC = () => {
     const torsions = (
         <div>
             <div>Torsions &amp; distances</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'auto auto auto'}}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'auto auto auto', gridColumnGap: '0.25rem' }}>
                 <div></div>
-                <div>Actual (deg)</div>
-                <div>{'\u03B4'} to NtC (deg)</div>
+                <div style={{ textAlign: 'right' }}>Actual (deg)</div>
+                <div style={{ textAlign: 'right' }}>{'\u03B4'} to NtC (deg)</div>
 
                 <div>{'\u018D'}1</div>
-                <div>{rad2deg(metrics?.delta_1)?.toFixed(2) ?? ''}</div>
-                <div>{rad2deg(metricsDiffs?.delta_1)?.toFixed(2) ?? ''} </div>
+                <div style={{ fontFamily: 'monospace', textAlign: 'right' }}>{rad2deg(metrics?.delta_1)?.toFixed(2) ?? ''}</div>
+                <div style={{ fontFamily: 'monospace', textAlign: 'right' }}>{rad2deg(metricsDiffs?.delta_1)?.toFixed(2) ?? ''} </div>
 
                 <div>{'\u025B'}1</div>
-                <div>{rad2deg(metrics?.epsilon_1)?.toFixed(2) ?? ''}</div>
-                <div>{rad2deg(metricsDiffs?.epsilon_1)?.toFixed(2) ?? ''}</div>
+                <div style={{ fontFamily: 'monospace', textAlign: 'right' }}>{rad2deg(metrics?.epsilon_1)?.toFixed(2) ?? ''}</div>
+                <div style={{ fontFamily: 'monospace', textAlign: 'right' }}>{rad2deg(metricsDiffs?.epsilon_1)?.toFixed(2) ?? ''}</div>
 
                 <div>{'\u03B6'}1</div>
-                <div>{rad2deg(metrics?.zeta_1)?.toFixed(2) ?? ''}</div>
-                <div>{rad2deg(metricsDiffs?.zeta_1)?.toFixed(2) ?? ''}</div>
+                <div style={{ fontFamily: 'monospace', textAlign: 'right' }}>{rad2deg(metrics?.zeta_1)?.toFixed(2) ?? ''}</div>
+                <div style={{ fontFamily: 'monospace', textAlign: 'right' }}>{rad2deg(metricsDiffs?.zeta_1)?.toFixed(2) ?? ''}</div>
 
                 <div>{'\u03B1'}2</div>
-                <div>{rad2deg(metrics?.alpha_2)?.toFixed(2) ?? ''}</div>
-                <div>{rad2deg(metricsDiffs?.alpha_2)?.toFixed(2) ?? ''}</div>
+                <div style={{ fontFamily: 'monospace', textAlign: 'right' }}>{rad2deg(metrics?.alpha_2)?.toFixed(2) ?? ''}</div>
+                <div style={{ fontFamily: 'monospace', textAlign: 'right' }}>{rad2deg(metricsDiffs?.alpha_2)?.toFixed(2) ?? ''}</div>
 
                 <div>{'\u03B2'}2</div>
-                <div>{rad2deg(metrics?.beta_2)?.toFixed(2) ?? ''}</div>
-                <div>{rad2deg(metricsDiffs?.beta_2)?.toFixed(2) ?? ''}</div>
+                <div style={{ fontFamily: 'monospace', textAlign: 'right' }}>{rad2deg(metrics?.beta_2)?.toFixed(2) ?? ''}</div>
+                <div style={{ fontFamily: 'monospace', textAlign: 'right' }}>{rad2deg(metricsDiffs?.beta_2)?.toFixed(2) ?? ''}</div>
 
                 <div>{'\u03B3'}2</div>
-                <div>{rad2deg(metrics?.gamma_2)?.toFixed(2) ?? ''}</div>
-                <div>{rad2deg(metricsDiffs?.gamma_2)?.toFixed(2) ?? ''}</div>
+                <div style={{ fontFamily: 'monospace', textAlign: 'right' }}>{rad2deg(metrics?.gamma_2)?.toFixed(2) ?? ''}</div>
+                <div style={{ fontFamily: 'monospace', textAlign: 'right' }}>{rad2deg(metricsDiffs?.gamma_2)?.toFixed(2) ?? ''}</div>
 
                 <div>{'\u03B4'}2</div>
-                <div>{rad2deg(metrics?.delta_2)?.toFixed(2) ?? ''}</div>
-                <div>{rad2deg(metricsDiffs?.delta_2)?.toFixed(2) ?? ''}</div>
+                <div style={{ fontFamily: 'monospace', textAlign: 'right' }}>{rad2deg(metrics?.delta_2)?.toFixed(2) ?? ''}</div>
+                <div style={{ fontFamily: 'monospace', textAlign: 'right' }}>{rad2deg(metricsDiffs?.delta_2)?.toFixed(2) ?? ''}</div>
 
                 <div>{'\u03C7'}1</div>
-                <div>{rad2deg(metrics?.chi_1)?.toFixed(2) ?? ''}</div>
-                <div>{rad2deg(metricsDiffs?.chi_1)?.toFixed(2) ?? ''}</div>
+                <div style={{ fontFamily: 'monospace', textAlign: 'right' }}>{rad2deg(metrics?.chi_1)?.toFixed(2) ?? ''}</div>
+                <div style={{ fontFamily: 'monospace', textAlign: 'right' }}>{rad2deg(metricsDiffs?.chi_1)?.toFixed(2) ?? ''}</div>
 
                 <div>{'\u03C7'}2</div>
-                <div>{rad2deg(metrics?.chi_2)?.toFixed(2) ?? ''}</div>
-                <div>{rad2deg(metricsDiffs?.chi_2)?.toFixed(2) ?? ''}</div>
+                <div style={{ fontFamily: 'monospace', textAlign: 'right' }}>{rad2deg(metrics?.chi_2)?.toFixed(2) ?? ''}</div>
+                <div style={{ fontFamily: 'monospace', textAlign: 'right' }}>{rad2deg(metricsDiffs?.chi_2)?.toFixed(2) ?? ''}</div>
 
                 <div>C&apos;C&apos;</div>
-                <div>{rad2deg(metrics?.CC)?.toFixed(2) ?? ''}</div>
-                <div>{rad2deg(metricsDiffs?.CC)?.toFixed(2) ?? ''}</div>
+                <div style={{ fontFamily: 'monospace', textAlign: 'right' }}>{rad2deg(metrics?.CC)?.toFixed(2) ?? ''}</div>
+                <div style={{ fontFamily: 'monospace', textAlign: 'right' }}>{rad2deg(metricsDiffs?.CC)?.toFixed(2) ?? ''}</div>
 
                 <div>N&apos;N&apos;</div>
-                <div>{rad2deg(metrics?.NN)?.toFixed(2) ?? ''}</div>
-                <div>{rad2deg(metricsDiffs?.NN)?.toFixed(2) ?? ''}</div>
+                <div style={{ fontFamily: 'monospace', textAlign: 'right' }}>{rad2deg(metrics?.NN)?.toFixed(2) ?? ''}</div>
+                <div style={{ fontFamily: 'monospace', textAlign: 'right' }}>{rad2deg(metricsDiffs?.NN)?.toFixed(2) ?? ''}</div>
 
                 <div>{'\u00B5'}</div>
-                <div>{rad2deg(metrics?.mu)?.toFixed(2) ?? ''}</div>
-                <div>{rad2deg(metricsDiffs?.mu)?.toFixed(2) ?? ''}</div>
+                <div style={{ fontFamily: 'monospace', textAlign: 'right' }}>{rad2deg(metrics?.mu)?.toFixed(2) ?? ''}</div>
+                <div style={{ fontFamily: 'monospace', textAlign: 'right' }}>{rad2deg(metricsDiffs?.mu)?.toFixed(2) ?? ''}</div>
             </div>
         </div>
     );
 
     return (
         <div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'auto auto' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'auto auto', gridColumnGap: '0.5rem' }}>
                 <div>Assigned NtC</div>
                 <div>{assignedNtC}</div>
 
