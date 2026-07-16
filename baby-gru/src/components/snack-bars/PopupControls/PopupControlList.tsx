@@ -8,15 +8,18 @@ import { AtomInfo } from "./AtomInfo";
 import { GoToResidue } from "./GoToResidue";
 import { MapContourLevel } from "./MapContourLevel";
 import { ModelTrajectory } from "./ModelTrajectory";
+import { NtC } from "./NtC";
 import { ResidueSelectionControls } from "./ResidueSelection";
 import { ResidueSteps } from "./ResidueSteps";
 import { RotamerChange } from "./RotamerChange";
 import { Screenshot } from "./ScreenshotControls";
 import { VideoRecording } from "./VideoRecording";
+import { gemmi } from "../../../types/gemmi";
 
 type PayloadType = Record<
     string,
-    string | string[] | number | number[] | boolean | boolean[] | moorhen.ResidueSpec | moorhen.ResidueSpec[] | undefined
+    string | string[] | number | number[] | boolean | boolean[] | moorhen.ResidueSpec | moorhen.ResidueSpec[] | { chain: gemmi.Chain, residue: gemmi.Residue } |
+    undefined
 >;
 
 type ValidatePayloadMap<T extends Record<string, PayloadType | undefined>> = T;
@@ -36,6 +39,11 @@ type PayloadMap = ValidatePayloadMap<{
     flipAllPeptides: { residueList: string[]; selectedMolecule: number };
     steppedRefine: { residueList: string[]; selectedMolecule: number };
     fillAllAtoms: { residueList: string[]; selectedMolecule: number };
+    NtC: {
+        molNo: number,
+        firstResidue: { chain: gemmi.Chain, residue: gemmi.Residue },
+        secondResidue: { chain: gemmi.Chain, residue: gemmi.Residue },
+    };
 }>;
 
 type PopupControl = {
@@ -98,4 +106,8 @@ export const PopupControlList: PopupControl[] = [
     { name: "flipAllPeptides", component: <ResidueSteps variant="pepFlip" /> },
     { name: "steppedRefine", component: <ResidueSteps variant="stepRefine" /> },
     { name: "fillAllAtoms", component: <ResidueSteps variant="fillAllAtoms" /> },
+    {
+        name: "NtC",
+        component: <NtC />,
+    },
 ];

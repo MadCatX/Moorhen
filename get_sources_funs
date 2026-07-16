@@ -521,3 +521,14 @@ getcoordgen() {
     fi
     echo
 }
+
+getlibllka() {
+    cdcheckout
+    if [ -r libllka ]; then
+        echo "Using existing libLLKA"
+    else
+        echo "Checking out libLLKA"
+	git clone https://github.com/cernylab/libLLKA.git libllka || fail "Failed to git clone repository"
+    fi
+    echo
+}

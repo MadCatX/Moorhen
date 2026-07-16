@@ -1015,6 +1015,20 @@ if [ $BUILD_CONKIT = true ]; then
     emmake make install || fail "Error installing SliceNDice, giving up."
 fi
 
+#libllka
+if [ $BUILD_LIBLLKA = true ]; then
+    getlibllka
+    mkdir -p ${BUILD_DIR}/libllka_build
+    cd ${BUILD_DIR}/libllka_build
+    emcmake cmake -DCMAKE_INSTALL_PREFIX=${INSTALL_DIR} -DEIGEN_INCLUDE_DIR=${INSTALL_DIR}/include/eigen3 -DEMX_JS_BUILD_MODE="WEBWORKER" -DBUILD_TESTING=OFF -DBUILD_EXAMPLES=OFF ${MOORHEN_SOURCE_DIR}/checkout/libllka
+    make install || fail "Error installing libllka, giving up."
+    # Copy the classification parametrization files to baby-gru
+    mkdir -p ${MOORHEN_SOURCE_DIR}/baby-gru/public/MoorhenAssets/llka
+    cp ${MOORHEN_SOURCE_DIR}/checkout/libllka/assets/*.csv ${MOORHEN_SOURCE_DIR}/baby-gru/public/MoorhenAssets/llka
+    cp ${BUILD_DIR}/libllka_build/libLLKA.js ${MOORHEN_SOURCE_DIR}/baby-gru/public/MoorhenAssets/
+    cp ${BUILD_DIR}/libllka_build/libLLKA.wasm ${MOORHEN_SOURCE_DIR}/baby-gru/public/MoorhenAssets/
+fi
+
 #Moorhen
 if [ $BUILD_MOORHEN = true ]; then
     BOOST_CMAKE_STUFF=`for i in ${INSTALL_DIR}/lib/cmake/boost*; do ii=${i%-static}; j=${ii%-$boost_release}; k=${j#${INSTALL_DIR}/lib/cmake/boost_}; echo -Dboost_${k}_DIR=$i; done`

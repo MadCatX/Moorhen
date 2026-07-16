@@ -15,6 +15,7 @@ import { MoorhenSideChain180Button } from "./MoorhenSideChain180Button";
 import { MoorhenRefineResiduesButton } from "./MoorhenRefineResiduesButton";
 import { MoorhenDeleteButton } from "./MoorhenDeleteButton";
 import { MoorhenMutateButton } from "./MoorhenMutateButton";
+import { MoorhenNtCButton } from "./MoorhenNtCButton";
 import { MoorhenEigenFlipLigandButton } from "./MoorhenEigenFlipLigandButton";
 import { MoorhenJedFlipFalseButton } from "./MoorhenJedFlipFalseButton";
 import { MoorhenJedFlipTrueButton } from "./MoorhenJedFlipTrueButton";
@@ -176,6 +177,7 @@ export const MoorhenContextMenu = (props: {
                                                 <MoorhenDragAtomsButton {...collectedProps} />
                                                 <MoorhenAddAltConfButton {...collectedProps} />
                                                 <MoorhenConvertCisTransButton {...collectedProps} />
+                                                <MoorhenNtCButton {...collectedProps} />
                                     </div>
                                 )
                             )}
